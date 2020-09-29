@@ -1,11 +1,18 @@
 package main
 
 import (
+	"fmt"
 	"html/template"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"regexp"
+	// "log"
+	"context"
+	"time"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type Page struct {
@@ -26,6 +33,14 @@ func loadPage(title string) (*Page, error) {
 	}
 	return &Page{Title: title, Body: body}, nil
 }
+// func getCredentials(title string) ([]byte, error){
+// 	filename := title + ".txt"
+// 	password, err := ioutil.ReadFile(filename)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return password, nil
+// }
 
 func viewHandler(w http.ResponseWriter, r *http.Request, title string) {
 	p, err := loadPage(title)
@@ -76,11 +91,31 @@ func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.Handl
 		fn(w, r, m[2])
 	}
 }
-
+var connectionURI = "mongodb+srv://(username):(password)@cluster0.kljzg.mongodb.net/(dbname)?retryWrites=true&w=majority"
 func main() {
+	
+	client, err := mongo.NewClient(options.Client().ApplyURI(connectionURI))
+    if err != nil {
+        log.Fatal(err)
+    }
+    ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+    err = client.Connect(ctx)
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer client.Disconnect(ctx)
+    quickstartDatabase := client.Database("foo")
+	barCollection := quickstartDatabase.Collection("bar")
+	barResult, err := barCollection.InsertOne(ctx, bson.D{
+		{Key: "name", Value: "Aaron"},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(barResult.InsertedID)
+
 	http.HandleFunc("/view/", makeHandler(viewHandler))
 	http.HandleFunc("/edit/", makeHandler(editHandler))
 	http.HandleFunc("/save/", makeHandler(saveHandler))
-
 	log.Fatal(http.ListenAndServe(":1234", nil))
 }
