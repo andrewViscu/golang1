@@ -9,7 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-var connectionURI = "mongodb+srv://andrewViscu:AquaDash1324@cluster0.kljzg.mongodb.net/foo?retryWrites=true&w=majority"
+var connectionURI = "mongodb+srv://andrewViscu:(password)@cluster0.kljzg.mongodb.net/foo?retryWrites=true&w=majority"
 
 func db() *mongo.Client {
 	clientOptions := options.Client().ApplyURI(connectionURI)
