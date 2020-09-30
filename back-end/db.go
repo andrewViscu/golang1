@@ -23,6 +23,6 @@ func db() *mongo.Client {
 		log.Fatal(err)
 	}
 	fmt.Println("Connected to MongoDB!")
-	defer client.Disconnect(ctx)
+	// defer client.Disconnect(ctx)
 	return client
 }
