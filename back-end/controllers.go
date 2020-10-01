@@ -1,165 +1,158 @@
 package main
 
 import (
-    "database/sql"
-    "log"
-    "net/http"
-    "text/template"
-
-    _ "github.com/go-sql-driver/mysql"
+	"fmt"
+	"encoding/json"
+	"net/http"
+	"context"
+    "time"
+    // "io/ioutil"
+	"log"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-type Person struct {
-    Id    int
-    Name  string
-    City string
+// type Page struct {
+// 	Title string
+// 	Body  []byte
+// }
+
+// func (p *Page) save() error {
+// 	filename := p.Title + ".txt"
+// 	return ioutil.WriteFile(filename, p.Body, 0600)
+// }
+
+// func loadPage(title string) (*Page, error) {
+// 	filename := title + ".txt"
+// 	body, err := ioutil.ReadFile(filename)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return &Page{Title: title, Body: body}, nil
+// }
+// // func getCredentials(title string) ([]byte, error){
+// // 	filename := title + ".txt"
+// // 	password, err := ioutil.ReadFile(filename)
+// // 	if err != nil {
+// // 		return nil, err
+// // 	}
+// // 	return password, nil
+// // }
+
+// func viewHandler(w http.ResponseWriter, r *http.Request, title string) {
+// 	p, err := loadPage(title)
+// 	if err != nil {
+// 		http.Redirect(w, r, "/edit/"+title, http.StatusFound)
+// 		return
+// 	}
+// 	renderTemplate(w, "view", p)
+// }
+
+// func editHandler(w http.ResponseWriter, r *http.Request, title string) {
+// 	p, err := loadPage(title)
+// 	if err != nil {
+// 		p = &Page{Title: title}
+// 	}
+// 	renderTemplate(w, "edit", p)
+// }
+
+// func saveHandler(w http.ResponseWriter, r *http.Request, title string) {
+// 	body := r.FormValue("body")
+// 	p := &Page{Title: title, Body: []byte(body)}
+// 	err := p.save()
+// 	if err != nil {
+// 		http.Error(w, err.Error(), http.StatusInternalServerError)
+// 		return
+// 	}
+// 	http.Redirect(w, r, "/view/"+title, http.StatusFound)
+// }
+
+// var templates = template.Must(template.ParseFiles("edit.html", "view.html"))
+
+// func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
+// 	err := templates.ExecuteTemplate(w, tmpl+".html", p)
+// 	if err != nil {
+// 		http.Error(w, err.Error(), http.StatusInternalServerError)
+// 	}
+// }
+
+// var validPath = regexp.MustCompile("^/(edit|save|view)/([a-zA-Z0-9]+)$")
+
+// func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
+// 	return func(w http.ResponseWriter, r *http.Request) {
+// 		m := validPath.FindStringSubmatch(r.URL.Path)
+// 		if m == nil {
+// 			http.NotFound(w, r)
+// 			return
+// 		}
+// 		fn(w, r, m[2])
+// 	}
+// }
+
+type User struct{
+	Name string `json:"name"`
+	City string `json:"city"`
+	Age int `json:"age"`
 }
 
-func dbConn() (db *sql.DB) {
-    dbDriver := "mysql"
-    dbUser := "root"
-    dbPass := "MyNewPass"
-    dbName := "golang1"
-    db, err := sql.Open(dbDriver, dbUser+":"+dbPass+"@/"+dbName)
-    if err != nil {
-        panic(err.Error())
-    }
-    return db
+var userCollection = db().Database("foo").Collection("bar")
+
+func getAllUsers(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	var results []primitive.M                                   //slice for multiple documents
+	cur, err := userCollection.Find(context.TODO(), bson.D{{}}) //returns a *mongo.Cursor
+	if err != nil {
+
+		fmt.Println(err)
+
+	}
+	for cur.Next(context.TODO()) { //Next() gets the next document for corresponding cursor
+
+		var elem primitive.M
+		err := cur.Decode(&elem)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		results = append(results, elem) // appending document pointed by Next()
+	}
+	cur.Close(context.TODO()) // close the cursor once stream of documents has exhausted
+	json.NewEncoder(w).Encode(results)
 }
 
-var tmpl = template.Must(template.ParseGlob("public/*"))
+func createProfile(w http.ResponseWriter, r *http.Request) {
 
-func Index(w http.ResponseWriter, r *http.Request) {
-    db := dbConn()
-    selDB, err := db.Query("SELECT * FROM Person ORDER BY id DESC")
-    if err != nil {
-        panic(err.Error())
-    }
-    emp := Person{}
-    res := []Person{}
-    for selDB.Next() {
-        var id int
-        var name, city string
-        err = selDB.Scan(&id, &name, &city)
-        if err != nil {
-            panic(err.Error())
-        }
-        emp.Id = id
-        emp.Name = name
-        emp.City = city
-        res = append(res, emp)
-    }
-    tmpl.ExecuteTemplate(w, "Index", res)
-    defer db.Close()
+	w.Header().Set("Content-Type", "application/json") // for adding Content-type
+
+	var person User
+	err := json.NewDecoder(r.Body).Decode(&person) // storing in person variable of type user
+	if err != nil {
+		fmt.Print(err)
+	}
+	insertResult, err := userCollection.InsertOne(context.TODO(), person)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("Inserted a single document: ", insertResult)
+	json.NewEncoder(w).Encode(insertResult.InsertedID) // return the mongodb ID of generated document
+
 }
 
-func Show(w http.ResponseWriter, r *http.Request) {
-    db := dbConn()
-    nId := r.URL.Query().Get("id")
-    selDB, err := db.Query("SELECT * FROM Person WHERE id=?", nId)
-    if err != nil {
-        panic(err.Error())
+func getUserProfile(w http.ResponseWriter, req *http.Request){
+	w.Header().Set("Content-Type", "application/json")
+
+    name := req.URL.Query().Get("name")
+    log.Print(name)
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	var result primitive.M //  an unordered representation of a BSON //document which is a Map
+    res := userCollection.FindOne(ctx, bson.D{{Key:"Name" , Value: name}})
+    err := res.Err()
+	if err != nil {
+		fmt.Println(err)
     }
-    emp := Person{}
-    for selDB.Next() {
-        var id int
-        var name, city string
-        err = selDB.Scan(&id, &name, &city)
-        if err != nil {
-            panic(err.Error())
-        }
-        emp.Id = id
-        emp.Name = name
-        emp.City = city
-    }
-    tmpl.ExecuteTemplate(w, "Show", emp)
-    defer db.Close()
+    res.Decode(&result)
+    json.NewEncoder(w).Encode(result)
+
 }
 
-func New(w http.ResponseWriter, r *http.Request) {
-    tmpl.ExecuteTemplate(w, "New", nil)
-}
-
-func Edit(w http.ResponseWriter, r *http.Request) {
-    db := dbConn()
-    nId := r.URL.Query().Get("id")
-    selDB, err := db.Query("SELECT * FROM Person WHERE id=?", nId)
-    if err != nil {
-        panic(err.Error())
-    }
-    emp := Person{}
-    for selDB.Next() {
-        var id int
-        var name, city string
-        err = selDB.Scan(&id, &name, &city)
-        if err != nil {
-            panic(err.Error())
-        }
-        emp.Id = id
-        emp.Name = name
-        emp.City = city
-    }
-    tmpl.ExecuteTemplate(w, "Edit", emp)
-    defer db.Close()
-}
-
-func Insert(w http.ResponseWriter, r *http.Request) {
-    db := dbConn()
-    if r.Method == "POST" {
-        name := r.FormValue("name")
-        city := r.FormValue("city")
-        insForm, err := db.Prepare("INSERT INTO Person(name, city) VALUES(?,?)")
-        if err != nil {
-            panic(err.Error())
-        }
-        insForm.Exec(name, city)
-        log.Println("INSERT: Name: " + name + " | City: " + city)
-    }
-    defer db.Close()
-    http.Redirect(w, r, "/", 301)
-}
-
-func Update(w http.ResponseWriter, r *http.Request) {
-    db := dbConn()
-    if r.Method == "POST" {
-        name := r.FormValue("name")
-        city := r.FormValue("city")
-        id := r.FormValue("uid")
-        insForm, err := db.Prepare("UPDATE Person SET name=?, city=? WHERE id=?")
-        if err != nil {
-            panic(err.Error())
-        }
-        insForm.Exec(name, city, id)
-        log.Println("UPDATE: Name: " + name + " | City: " + city)
-    }
-    defer db.Close()
-    http.Redirect(w, r, "/", 301)
-}
-
-func Delete(w http.ResponseWriter, r *http.Request) {
-    db := dbConn()
-    emp := r.URL.Query().Get("id")
-    delForm, err := db.Prepare("DELETE FROM Person WHERE id=?")
-    if err != nil {
-        panic(err.Error())
-    }
-    delForm.Exec(emp)
-    log.Println("DELETE")
-    defer db.Close()
-    http.Redirect(w, r, "/", 301)
-}
-
-
-
-func main() {
-	port := ":1234"
-    log.Printf("Server started on: http://localhost%v", port)
-    http.HandleFunc("/", Index)
-    http.HandleFunc("/show", Show)
-    http.HandleFunc("/new", New)
-    http.HandleFunc("/edit", Edit)
-    http.HandleFunc("/insert", Insert)
-    http.HandleFunc("/update", Update)
-    http.HandleFunc("/delete", Delete)
-    http.ListenAndServe(port, nil)
-}
