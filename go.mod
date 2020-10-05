@@ -1,4 +1,4 @@
-module example.com/greetings
+module andrewViscu/golang1
 
 go 1.15
 
