@@ -9,7 +9,9 @@ import (
     // "io/ioutil"
 	"log"
 	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
+    "go.mongodb.org/mongo-driver/bson/primitive"
+    // "github.com/gorilla/mux"
 )
 
 // type Page struct {
@@ -99,14 +101,18 @@ var userCollection = db().Database("foo").Collection("bar")
 
 func getAllUsers(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	var results []primitive.M                                   //slice for multiple documents
-	cur, err := userCollection.Find(context.TODO(), bson.D{{}}) //returns a *mongo.Cursor
+	cur, err := userCollection.Find(ctx, bson.M{}) //returns a *mongo.Cursor
 	if err != nil {
 
-		fmt.Println(err)
-
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{ "message": "` + err.Error() + `",
+		 "response": 500}`))
+		return
 	}
-	for cur.Next(context.TODO()) { //Next() gets the next document for corresponding cursor
+	defer cur.Close(ctx) // close the cursor once stream of documents has exhausted
+	for cur.Next(ctx) { //Next() gets the next document for corresponding cursor
 
 		var elem primitive.M
 		err := cur.Decode(&elem)
@@ -116,7 +122,6 @@ func getAllUsers(w http.ResponseWriter, r *http.Request) {
 
 		results = append(results, elem) // appending document pointed by Next()
 	}
-	cur.Close(context.TODO()) // close the cursor once stream of documents has exhausted
 	json.NewEncoder(w).Encode(results)
 }
 
@@ -125,13 +130,18 @@ func createProfile(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json") // for adding Content-type
 
 	var person User
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	err := json.NewDecoder(r.Body).Decode(&person) // storing in person variable of type user
 	if err != nil {
 		fmt.Print(err)
 	}
-	insertResult, err := userCollection.InsertOne(context.TODO(), person)
+	insertResult, err := userCollection.InsertOne(ctx, person)
 	if err != nil {
-		log.Fatal(err)
+		log.Print("An error occured while inserting!")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{ "message": "` + err.Error() + `",
+		 "response": 500}`))
+		return
 	}
 
 	fmt.Println("Inserted a single document: ", insertResult)
@@ -142,11 +152,20 @@ func createProfile(w http.ResponseWriter, r *http.Request) {
 func getUserProfile(w http.ResponseWriter, req *http.Request){
 	w.Header().Set("Content-Type", "application/json")
 
-    name := req.URL.Query().Get("name")
-    log.Print(name)
+    // m := make(map[string] string)
+    // m["name"] = 
+    // m["city"] = req.URL.Query().Get("city")
+    // m["age"] = req.URL.Query().Get("age")
+    // for key, value := range m {
+    //     if value == "" {
+    //         delete(m, key)
+    //     }
+	// }
+	name := req.URL.Query().Get("name")
+    log.Print(name)  
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	var result primitive.M //  an unordered representation of a BSON //document which is a Map
-    res := userCollection.FindOne(ctx, bson.D{{Key:"Name" , Value: name}})
+    res := userCollection.FindOne(ctx, bson.D{{Key:"name" , Value: name}})
     err := res.Err()
 	if err != nil {
 		fmt.Println(err)
@@ -155,4 +174,51 @@ func getUserProfile(w http.ResponseWriter, req *http.Request){
     json.NewEncoder(w).Encode(result)
 
 }
+
+func updateProfile(w http.ResponseWriter, req *http.Request) {
+
+	w.Header().Set("Content-Type", "application/json")
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+
+	name := req.URL.Query().Get("name")
+	log.Print(name)
+	city := req.URL.Query().Get("city")
+	filter := bson.D{{Key: "name", Value: name}} // converting value to BSON type
+	after := options.After          // for returning updated document
+	returnOpt := options.FindOneAndUpdateOptions{
+
+		ReturnDocument: &after,
+	}
+	update := bson.D{{Key: "$set", Value: bson.D{{Key: "city", Value: city}}}}
+	updateResult := userCollection.FindOneAndUpdate(ctx, filter, update, &returnOpt)
+	err := updateResult.Err()
+	if err != nil {
+		fmt.Println()
+	}
+	var result primitive.M
+	_ = updateResult.Decode(&result)
+
+	json.NewEncoder(w).Encode(result)
+}
+
+// //Delete Profile of User
+
+// func deleteProfile(w http.ResponseWriter, r *http.Request) {
+
+// 	w.Header().Set("Content-Type", "application/json")
+// 	params := mux.Vars(r)["id"] //get Parameter value as string
+
+// 	_id, err := primitive.ObjectIDFromHex(params) // convert params to mongodb Hex ID
+// 	if err != nil {
+// 		fmt.Printf(err.Error())
+// 	}
+// 	opts := options.Delete().SetCollation(&options.Collation{}) // to specify language-specific rules for string comparison, such as rules for lettercase
+// 	res, err := userCollection.DeleteOne(context.TODO(), bson.D{{"_id", _id}}, opts)
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+// 	fmt.Printf("deleted %v documents\n", res.DeletedCount)
+// 	json.NewEncoder(w).Encode(res.DeletedCount) // return number of documents deleted
+
+// }
 
