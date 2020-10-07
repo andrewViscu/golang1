@@ -11,13 +11,14 @@ func main() {
 	s := mux.NewRouter()
 	
 
-	s.HandleFunc("/getUserProfile", getUserProfile).Methods("GET")
-	s.HandleFunc("/getAllUsers", getAllUsers).Methods("GET")
-	s.HandleFunc("/createProfile", createProfile).Methods("POST")
-	s.HandleFunc("/updateProfile", updateProfile).Methods("PUT")
+	s.HandleFunc("/users/{id}", getUserProfile).Methods("GET")
+	s.HandleFunc("/users", getAllUsers).Methods("GET")
+	s.HandleFunc("/users", createProfile).Methods("POST")
+	s.HandleFunc("/users/{id}", updateProfile).Methods("PUT")
+	s.HandleFunc("users/{id}", updateProfile).Methods("PATCH")
+	s.HandleFunc("/deleteProfile/{id}", deleteProfile).Methods("DELETE")
 	
 	//TODO: 
 	// s.HandleFunc("/", Index).Methods("GET")
-	// s.HandleFunc("/deleteProfile/{id}", deleteProfile).Methods("DELETE")
 	log.Fatal(http.ListenAndServe(":1234", s))
 }

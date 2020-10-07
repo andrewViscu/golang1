@@ -11,7 +11,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
     "go.mongodb.org/mongo-driver/bson/primitive"
-    // "github.com/gorilla/mux"
+    "github.com/gorilla/mux"
 )
 
 // type Page struct {
@@ -137,7 +137,7 @@ func createProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	insertResult, err := userCollection.InsertOne(ctx, person)
 	if err != nil {
-		log.Print("An error occured while inserting!")
+		log.Print("An error occured while INSERTING!")
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(`{ "message": "` + err.Error() + `",
 		 "response": 500}`))
@@ -161,16 +161,25 @@ func getUserProfile(w http.ResponseWriter, req *http.Request){
     //         delete(m, key)
     //     }
 	// }
-	name := req.URL.Query().Get("name")
-    log.Print(name)  
+	params := mux.Vars(req)["id"] //get Parameter value as string
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	var result primitive.M //  an unordered representation of a BSON //document which is a Map
-    res := userCollection.FindOne(ctx, bson.D{{Key:"name" , Value: name}})
-    err := res.Err()
+
+	_id, err := primitive.ObjectIDFromHex(params) // convert params to mongodb Hex ID
 	if err != nil {
-		fmt.Println(err)
-    }
-    res.Decode(&result)
+		fmt.Printf(err.Error())
+	}
+	opts := options.FindOne().SetCollation(&options.Collation{}) // to specify language-specific rules for string comparison, such as rules for lettercase
+	res := userCollection.FindOne(ctx, bson.D{{"_id", _id}}, opts)
+	err = res.Err()
+	if err != nil {
+		log.Print("An error occured while GETTING USER!")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{ "message": "` + err.Error() + `",
+		 "response": 500}`))
+		 return
+	}
+	var result primitive.M //  an unordered representation of a BSON //document which is a Map
+	res.Decode(&result)
     json.NewEncoder(w).Encode(result)
 
 }
@@ -178,12 +187,14 @@ func getUserProfile(w http.ResponseWriter, req *http.Request){
 func updateProfile(w http.ResponseWriter, req *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
+	params := mux.Vars(req)["id"] //get Parameter value as string
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-
-	name := req.URL.Query().Get("name")
-	log.Print(name)
+	_id, err := primitive.ObjectIDFromHex(params) // convert params to mongodb Hex ID
+	if err != nil {
+		fmt.Printf(err.Error())
+	}
 	city := req.URL.Query().Get("city")
-	filter := bson.D{{Key: "name", Value: name}} // converting value to BSON type
+	filter := bson.D{{"_id", _id}} // converting value to BSON type
 	after := options.After          // for returning updated document
 	returnOpt := options.FindOneAndUpdateOptions{
 
@@ -191,34 +202,37 @@ func updateProfile(w http.ResponseWriter, req *http.Request) {
 	}
 	update := bson.D{{Key: "$set", Value: bson.D{{Key: "city", Value: city}}}}
 	updateResult := userCollection.FindOneAndUpdate(ctx, filter, update, &returnOpt)
-	err := updateResult.Err()
+	err = updateResult.Err()
 	if err != nil {
-		fmt.Println()
+		log.Print("An error occured while UPDATING!")
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{ "message": "` + err.Error() + `",
+		 "response": 500}`))
+		 return
 	}
 	var result primitive.M
 	_ = updateResult.Decode(&result)
-
 	json.NewEncoder(w).Encode(result)
 }
 
 // //Delete Profile of User
 
-// func deleteProfile(w http.ResponseWriter, r *http.Request) {
+func deleteProfile(w http.ResponseWriter, req *http.Request) {
 
-// 	w.Header().Set("Content-Type", "application/json")
-// 	params := mux.Vars(r)["id"] //get Parameter value as string
+	w.Header().Set("Content-Type", "application/json")
+	params := mux.Vars(req)["id"] //get Parameter value as string
 
-// 	_id, err := primitive.ObjectIDFromHex(params) // convert params to mongodb Hex ID
-// 	if err != nil {
-// 		fmt.Printf(err.Error())
-// 	}
-// 	opts := options.Delete().SetCollation(&options.Collation{}) // to specify language-specific rules for string comparison, such as rules for lettercase
-// 	res, err := userCollection.DeleteOne(context.TODO(), bson.D{{"_id", _id}}, opts)
-// 	if err != nil {
-// 		log.Fatal(err)
-// 	}
-// 	fmt.Printf("deleted %v documents\n", res.DeletedCount)
-// 	json.NewEncoder(w).Encode(res.DeletedCount) // return number of documents deleted
+	_id, err := primitive.ObjectIDFromHex(params) // convert params to mongodb Hex ID
+	if err != nil {
+		fmt.Printf(err.Error())
+	}
+	opts := options.Delete().SetCollation(&options.Collation{}) // to specify language-specific rules for string comparison, such as rules for lettercase
+	res, err := userCollection.DeleteOne(context.TODO(), bson.D{{"_id", _id}}, opts)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("deleted %v documents\n", res.DeletedCount)
+	json.NewEncoder(w).Encode(res.DeletedCount) // return number of documents deleted
 
-// }
+}
 
