@@ -1,7 +1,12 @@
-{{ define "Index" }}
-  {{ template "Header" }}
-    {{ template "Menu"  }}
-    <h2> Registered </h2>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+<body>
+  <h2> Registered </h2>
     <table border="1">
       <thead>
       <tr>
@@ -16,9 +21,9 @@
        <tbody>
     {{ range . }}
       <tr>
-        <td>{{ .Id }}</td>
-        <td> {{ .Name }} </td>
-        <td>{{ .City }} </td> 
+        <td>{{ ._id }}</td>
+        <td> {{ .name }} </td>
+        <td>{{ .city }} </td> 
         <td><a href="/show?id={{ .Id }}">View</a></td>
         <td><a href="/edit?id={{ .Id }}">Edit</a></td>
         <td><a href="/delete?id={{ .Id }}">Delete</a><td>
@@ -26,5 +31,6 @@
     {{ end }}
        </tbody>
     </table>
-  {{ template "Footer" }}
-{{ end }}
+</body>
+</html>
+    

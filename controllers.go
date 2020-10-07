@@ -5,91 +5,16 @@ import (
 	"encoding/json"
 	"net/http"
 	"context"
-    "time"
-    // "io/ioutil"
+	"time"
+	"path"
+	// "io/ioutil"
+	"html/template"
 	"log"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
     "go.mongodb.org/mongo-driver/bson/primitive"
     "github.com/gorilla/mux"
 )
-
-// type Page struct {
-// 	Title string
-// 	Body  []byte
-// }
-
-// func (p *Page) save() error {
-// 	filename := p.Title + ".txt"
-// 	return ioutil.WriteFile(filename, p.Body, 0600)
-// }
-
-// func loadPage(title string) (*Page, error) {
-// 	filename := title + ".txt"
-// 	body, err := ioutil.ReadFile(filename)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return &Page{Title: title, Body: body}, nil
-// }
-// // func getCredentials(title string) ([]byte, error){
-// // 	filename := title + ".txt"
-// // 	password, err := ioutil.ReadFile(filename)
-// // 	if err != nil {
-// // 		return nil, err
-// // 	}
-// // 	return password, nil
-// // }
-
-// func viewHandler(w http.ResponseWriter, r *http.Request, title string) {
-// 	p, err := loadPage(title)
-// 	if err != nil {
-// 		http.Redirect(w, r, "/edit/"+title, http.StatusFound)
-// 		return
-// 	}
-// 	renderTemplate(w, "view", p)
-// }
-
-// func editHandler(w http.ResponseWriter, r *http.Request, title string) {
-// 	p, err := loadPage(title)
-// 	if err != nil {
-// 		p = &Page{Title: title}
-// 	}
-// 	renderTemplate(w, "edit", p)
-// }
-
-// func saveHandler(w http.ResponseWriter, r *http.Request, title string) {
-// 	body := r.FormValue("body")
-// 	p := &Page{Title: title, Body: []byte(body)}
-// 	err := p.save()
-// 	if err != nil {
-// 		http.Error(w, err.Error(), http.StatusInternalServerError)
-// 		return
-// 	}
-// 	http.Redirect(w, r, "/view/"+title, http.StatusFound)
-// }
-
-// var templates = template.Must(template.ParseFiles("edit.html", "view.html"))
-
-// func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
-// 	err := templates.ExecuteTemplate(w, tmpl+".html", p)
-// 	if err != nil {
-// 		http.Error(w, err.Error(), http.StatusInternalServerError)
-// 	}
-// }
-
-// var validPath = regexp.MustCompile("^/(edit|save|view)/([a-zA-Z0-9]+)$")
-
-// func makeHandler(fn func(http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
-// 	return func(w http.ResponseWriter, r *http.Request) {
-// 		m := validPath.FindStringSubmatch(r.URL.Path)
-// 		if m == nil {
-// 			http.NotFound(w, r)
-// 			return
-// 		}
-// 		fn(w, r, m[2])
-// 	}
-// }
 
 type User struct{
 	Name string `json:"name"`
@@ -99,8 +24,11 @@ type User struct{
 
 var userCollection = db().Database("foo").Collection("bar")
 
+
+var tmpl = template.Must(template.ParseFiles(path.Join("public", "Index.html")))
+
 func getAllUsers(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+	
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	var results []primitive.M                                   //slice for multiple documents
 	cur, err := userCollection.Find(ctx, bson.M{}) //returns a *mongo.Cursor
@@ -122,7 +50,10 @@ func getAllUsers(w http.ResponseWriter, r *http.Request) {
 
 		results = append(results, elem) // appending document pointed by Next()
 	}
-	json.NewEncoder(w).Encode(results)
+	// encodedResult := json.NewEncoder(w).Encode(results)
+	tmpl.Execute(w, results)
+	// fmt.Print(results)
+
 }
 
 func createProfile(w http.ResponseWriter, r *http.Request) {
@@ -149,18 +80,10 @@ func createProfile(w http.ResponseWriter, r *http.Request) {
 
 }
 
+
 func getUserProfile(w http.ResponseWriter, req *http.Request){
 	w.Header().Set("Content-Type", "application/json")
 
-    // m := make(map[string] string)
-    // m["name"] = 
-    // m["city"] = req.URL.Query().Get("city")
-    // m["age"] = req.URL.Query().Get("age")
-    // for key, value := range m {
-    //     if value == "" {
-    //         delete(m, key)
-    //     }
-	// }
 	params := mux.Vars(req)["id"] //get Parameter value as string
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 
@@ -187,20 +110,32 @@ func getUserProfile(w http.ResponseWriter, req *http.Request){
 func updateProfile(w http.ResponseWriter, req *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
+
+	type updateBody struct {
+		Name string `json:"name"` 
+		City string `json:"city"`
+		Age int 	`json:"age"`
+	}	
+	var body updateBody
+	e := json.NewDecoder(req.Body).Decode(&body)
+	if e != nil {
+
+		fmt.Print(e)
+	}
 	params := mux.Vars(req)["id"] //get Parameter value as string
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	_id, err := primitive.ObjectIDFromHex(params) // convert params to mongodb Hex ID
 	if err != nil {
 		fmt.Printf(err.Error())
 	}
-	city := req.URL.Query().Get("city")
 	filter := bson.D{{"_id", _id}} // converting value to BSON type
 	after := options.After          // for returning updated document
 	returnOpt := options.FindOneAndUpdateOptions{
 
 		ReturnDocument: &after,
 	}
-	update := bson.D{{Key: "$set", Value: bson.D{{Key: "city", Value: city}}}}
+	update := body
+	log.Print(update)
 	updateResult := userCollection.FindOneAndUpdate(ctx, filter, update, &returnOpt)
 	err = updateResult.Err()
 	if err != nil {

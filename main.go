@@ -16,7 +16,7 @@ func main() {
 	s.HandleFunc("/users", createProfile).Methods("POST")
 	s.HandleFunc("/users/{id}", updateProfile).Methods("PUT")
 	s.HandleFunc("users/{id}", updateProfile).Methods("PATCH")
-	s.HandleFunc("/deleteProfile/{id}", deleteProfile).Methods("DELETE")
+	s.HandleFunc("/users/{id}", deleteProfile).Methods("DELETE")
 	
 	//TODO: 
 	// s.HandleFunc("/", Index).Methods("GET")
