@@ -2,30 +2,92 @@ package main
 
 import (
 	"fmt"
-	"encoding/json"
-	"net/http"
 	"context"
 	"time"
 	"path"
-	// "io/ioutil"
-	"html/template"
+	"os"
 	"log"
+
+	"net/http"
+	"encoding/json"
+	"html/template"
+
+	"github.com/dgrijalva/jwt-go"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
     "go.mongodb.org/mongo-driver/bson/primitive"
-    "github.com/gorilla/mux"
+	"github.com/gorilla/mux"
+	
+
 )
 
 type User struct{
-	Name string `json:"name"`
+	Id primitive.ObjectID `bson:"_id"`
+	Username string `json:"username"`
+	Password string `json:"password"`
 	City string `json:"city"`
 	Age int `json:"age"`
 }
 
 var userCollection = db().Database("foo").Collection("bar")
 
-
 var tmpl = template.Must(template.ParseFiles(path.Join("public", "Index.html")))
+
+func login(w http.ResponseWriter, r *http.Request) {
+	var body User
+	var user User
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	err := json.NewDecoder(r.Body).Decode(&body)
+	if err != nil {
+		fmt.Print(err)
+	}
+
+	opts := options.FindOne().SetCollation(&options.Collation{})
+	res := userCollection.FindOne(ctx, bson.M{"username": body.Username}, opts)
+	// _id, err := primitive.ObjectIDFromHex(result.Id)
+	err = res.Err()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"message":"Couldn't find user with given username", "error":"` + err.Error() + `", "response":500}`))
+		return
+	}
+	res.Decode(&user)
+
+	
+	//compare the user from the request, with the one we defined:
+	if user.Username != body.Username || user.Password != body.Password {
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{ 
+	"message": "Wrong username or password",
+	"response": 500,
+}`))
+		return
+	}
+
+
+	token, err := CreateToken(body.Id)
+	if err != nil {
+	   w.WriteHeader(http.StatusUnprocessableEntity)
+	   w.Write([]byte(`{"message": "Something's wrong, I can feel it.", "response":422}`))
+	   return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"token": ` + token + `, "response":200}`))
+  }
+  func CreateToken(userId primitive.ObjectID) (string, error) {
+	var err error
+	//Creating Access Token
+	atClaims := jwt.MapClaims{}
+	atClaims["authorized"] = true
+	atClaims["user_id"] = userId
+	atClaims["exp"] = time.Now().Add(time.Minute * 15).Unix()
+	at := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)
+	token, err := at.SignedString([]byte(os.Getenv("ACCESS_SECRET")))
+	if err != nil {
+	   return "", err
+	}
+	return token, nil
+  }
 
 func getAllUsers(w http.ResponseWriter, r *http.Request) {
 	
@@ -60,13 +122,13 @@ func createProfile(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json") // for adding Content-type
 
-	var person User
+	var user User
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	err := json.NewDecoder(r.Body).Decode(&person) // storing in person variable of type user
+	err := json.NewDecoder(r.Body).Decode(&user) // storing in user variable of type user
 	if err != nil {
 		fmt.Print(err)
 	}
-	insertResult, err := userCollection.InsertOne(ctx, person)
+	insertResult, err := userCollection.InsertOne(ctx, user)
 	if err != nil {
 		log.Print("An error occured while INSERTING!")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -112,9 +174,9 @@ func updateProfile(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	type updateBody struct {
-		Name string `json:"name"` 
-		City string `json:"city"`
-		Age int 	`json:"age"`
+		Name string `json:"name,omitempty"` 
+		City string `json:"city,omitempty"`
+		Age int 	`json:"age,omitempty"`
 	}	
 	var body updateBody
 	e := json.NewDecoder(req.Body).Decode(&body)
@@ -134,7 +196,9 @@ func updateProfile(w http.ResponseWriter, req *http.Request) {
 
 		ReturnDocument: &after,
 	}
-	update := body
+	update := bson.M{
+		"$set": body,
+	}
 	log.Print(update)
 	updateResult := userCollection.FindOneAndUpdate(ctx, filter, update, &returnOpt)
 	err = updateResult.Err()
