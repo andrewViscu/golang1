@@ -14,7 +14,7 @@ func StartServer() {
 	s.HandleFunc("/users/{id}", GetUser).Methods("GET")
 	s.HandleFunc("/users",      GetAllUsers).Methods("GET")
 	s.HandleFunc("/users/{id}", UpdateUser).Methods("PUT")
-	s.HandleFunc("users/{id}",  UpdateUser).Methods("PATCH")
+	// s.HandleFunc("users/{id}",  UpdateUser).Methods("PATCH")
 	s.HandleFunc("/users/{id}", DeleteUser).Methods("DELETE")
 	s.HandleFunc("/register",   CreateUser).Methods("POST")
 	s.HandleFunc("/login",      Login).Methods("POST")

@@ -35,7 +35,7 @@ func Password(pass string) bool {
 	}
  
 	if !upp || !low || !num || tot < 8 {
-		return false
+		return false 
 	}
  
 	return true

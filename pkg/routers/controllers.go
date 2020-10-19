@@ -7,12 +7,13 @@ import (
 	"path"
 	"os"
 	"log"
-	"errors"
+	// "errors"
 
 	"net/http"
 	"encoding/json"
 	"html/template"
 
+    // "github.com/twinj/uuid"
 	"github.com/dgrijalva/jwt-go"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -28,10 +29,19 @@ type User struct{
 	Id primitive.ObjectID `bson:"_id"`
 	Username string `json:"username"`
 	Password string `json:"password"`
-	City string `json:"city"`
-	Age int `json:"age"`
+	City string `json:"city,omitempty"`
+	Age int `json:"age,omitempty"`
 	CreatedAt time.Time `bson:"created_at"`
 }
+
+type TokenDetails struct {
+	AccessToken  string
+	RefreshToken string
+	AccessUuid   string
+	RefreshUuid  string
+	AtExpires    int64
+	RtExpires    int64
+  }
 
 
 
@@ -49,7 +59,28 @@ func CheckPasswordHash(password, hash string) bool {
     return err == nil
 }
 
+func CheckToken(tokenString string) {
+	hmacSampleSecret := []byte(os.Getenv("ACCESS_SECRET"))
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		// Don't forget to validate the alg is what you expect:
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
+		}
+	
+		return hmacSampleSecret, nil
+	})
+	if err  != nil {
+		fmt.Println(err)
+	}
+	
+	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+		fmt.Println("Claims: ", claims["user_id"],  claims["authorized"])
+	}
+}
+
+// (POST /login)
 func Login(w http.ResponseWriter, r *http.Request) {
+
 	var body, user User
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -59,12 +90,14 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		fmt.Print(err)
 	}
 
-	opts := options.FindOne().SetCollation(&options.Collation{})
+	opts := options.FindOne().SetCollation(&options.Collation{})	
 	res := userCollection.FindOne(ctx, bson.M{"username": body.Username}, opts)
 	// _id, err := primitive.ObjectIDFromHex(result.Id)
-	err = errors.New(`User with username "` + body.Username + `" not found`)
+	err = res.Err()
 	if err != nil {
-		
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"error":"` + err.Error() + `", "response": 500}`))
+		return
 	}
 	res.Decode(&user)
 	
@@ -74,8 +107,9 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-
-	token, err := CreateToken(body.Id)
+	stringID := user.Id.Hex()
+	fmt.Println(stringID)
+	token, err := CreateToken(stringID)
 	if err != nil {
 	   w.WriteHeader(http.StatusUnprocessableEntity)
 	   w.Write([]byte(`{"message": "Something's wrong, I can feel it.", "response":422}`))
@@ -83,8 +117,10 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"token": ` + token + `, "response":200}`))
-  }
-  func CreateToken(userId primitive.ObjectID) (string, error) {
+	CheckToken(token)
+}
+
+func CreateToken(userId string) (string, error) {
 	var err error
 	//Creating Access Token
 	atClaims := jwt.MapClaims{}
@@ -97,7 +133,9 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	   return "", err
 	}
 	return token, nil
-  }
+}
+
+
 
 func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	
@@ -124,12 +162,13 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 		results = append(results, elem) // appending document pointed by Next()
 	}
 	json.NewEncoder(w).Encode(results)
+	// w.Write([]byte())
 	// tmpl.Execute(w, results)
 	// fmt.Print(results)
-
 }
 
 
+// (POST /register)
 func CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json") // for adding Content-type
@@ -142,8 +181,11 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 		fmt.Print(err)
 	}
 
+
 	if !middleware.Password(body.Password){ //
-		
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(`{"message": "Impossible password", "description":"Password should have: 8+ characters, an uppercase letter, a lowercase letter and a number.", "response": 500`))
+		return
 	}
 
 	body.Password, err = HashPassword(body.Password)
@@ -160,12 +202,12 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Printf("Inserted a single document: %v, hashed password: %v", insertResult, body.Password)
+	fmt.Printf("Created user '%v': %v\n", body.Username, insertResult)
 	json.NewEncoder(w).Encode(insertResult) // return the mongodb ID of generated document
 
 }
 
-
+// (GET /users/{id})
 func GetUser(w http.ResponseWriter, req *http.Request){
 	w.Header().Set("Content-Type", "application/json")
 
@@ -181,7 +223,7 @@ func GetUser(w http.ResponseWriter, req *http.Request){
 	res := userCollection.FindOne(ctx, bson.D{{Key: "_id", Value: _id}}, opts)
 	err = res.Err()
 	if err != nil {
-		log.Print("An error occured while GETTING USER!")
+		log.Print("An error occured while GETTING USER!\n")
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(`{ "message": "` + err.Error() + `",
 		 "response": 500}`))
@@ -192,7 +234,7 @@ func GetUser(w http.ResponseWriter, req *http.Request){
     json.NewEncoder(w).Encode(result)
 
 }
-
+// (PUT /users/{id})
 func UpdateUser(w http.ResponseWriter, req *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
@@ -239,8 +281,7 @@ func UpdateUser(w http.ResponseWriter, req *http.Request) {
 	json.NewEncoder(w).Encode(result)
 }
 
-// //Delete Profile of User
-
+// (DELETE /users/{id})
 func DeleteUser(w http.ResponseWriter, req *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
@@ -264,8 +305,8 @@ func DeleteUser(w http.ResponseWriter, req *http.Request) {
 	var deletedDocument bson.M
 	res.Decode(&deletedDocument)
 
-	fmt.Printf("Document: %v", deletedDocument)
-	w.Write([]byte(`{"message":"User ` + deletedDocument["username"].(string) + ` deleted.", "response":200`))
+	fmt.Printf("Document: %v\n", deletedDocument)
+	w.Write([]byte(`{"message":"User ` + deletedDocument["username"].(string) + ` deleted.", "response":200}`))
 
 }
 
