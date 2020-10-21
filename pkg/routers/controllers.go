@@ -1,27 +1,23 @@
 package routers
 
 import (
+	// "os"
 	"fmt"
-	"context"
+	"log"
 	"time"
 	"path"
-	"os"
-	"log"
-	// "errors"
+	"context"
 
 	"net/http"
 	"encoding/json"
 	"html/template"
 
-    // "github.com/twinj/uuid"
-	"github.com/dgrijalva/jwt-go"
+	"github.com/gorilla/mux"
+	"andrewViscu/golang1/pkg/db"
 	"go.mongodb.org/mongo-driver/bson"
+	mw "andrewViscu/golang1/pkg/middleware"
 	"go.mongodb.org/mongo-driver/mongo/options"
     "go.mongodb.org/mongo-driver/bson/primitive"
-	"github.com/gorilla/mux"
-	"golang.org/x/crypto/bcrypt"
-	"andrewViscu/golang1/pkg/db"
-	"andrewViscu/golang1/pkg/middleware"
 
 )
 
@@ -49,34 +45,8 @@ var userCollection = db.DBConnect().Database("foo").Collection("bar")
 
 var tmpl = template.Must(template.ParseFiles(path.Join("public", "Index.html")))
 
-func HashPassword(password string) (string, error) {
-    bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
-    return string(bytes), err
-}
 
-func CheckPasswordHash(password, hash string) bool {
-    err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(password))
-    return err == nil
-}
 
-func CheckToken(tokenString string) {
-	hmacSampleSecret := []byte(os.Getenv("ACCESS_SECRET"))
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		// Don't forget to validate the alg is what you expect:
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
-		}
-	
-		return hmacSampleSecret, nil
-	})
-	if err  != nil {
-		fmt.Println(err)
-	}
-	
-	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
-		fmt.Println("Claims: ", claims["user_id"],  claims["authorized"])
-	}
-}
 
 // (POST /login)
 func Login(w http.ResponseWriter, r *http.Request) {
@@ -101,7 +71,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	}
 	res.Decode(&user)
 	
-	if !CheckPasswordHash(body.Password, user.Password) {
+	if !mw.CheckPasswordHash(body.Password, user.Password) {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(`{ "message": "Wrong password", "response": 500 }`))
 		return
@@ -109,7 +79,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 
 	stringID := user.Id.Hex()
 	fmt.Println(stringID)
-	token, err := CreateToken(stringID)
+	token, err := mw.CreateToken(stringID)
 	if err != nil {
 	   w.WriteHeader(http.StatusUnprocessableEntity)
 	   w.Write([]byte(`{"message": "Something's wrong, I can feel it.", "response":422}`))
@@ -117,23 +87,11 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"token": ` + token + `, "response":200}`))
-	CheckToken(token)
+	mw.GetAuthenticatedUser(token)
+	// http.Redirect(w, r, `/users/` + userId, http.StatusSeeOther)
 }
 
-func CreateToken(userId string) (string, error) {
-	var err error
-	//Creating Access Token
-	atClaims := jwt.MapClaims{}
-	atClaims["authorized"] = true
-	atClaims["user_id"] = userId
-	atClaims["exp"] = time.Now().Add(time.Minute * 15).Unix()
-	at := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)
-	token, err := at.SignedString([]byte(os.Getenv("ACCESS_SECRET")))
-	if err != nil {
-	   return "", err
-	}
-	return token, nil
-}
+
 
 
 
@@ -161,7 +119,7 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 
 		results = append(results, elem) // appending document pointed by Next()
 	}
-	json.NewEncoder(w).Encode(results)
+	json.NewEncoder(w).Encode(results) 
 	// w.Write([]byte())
 	// tmpl.Execute(w, results)
 	// fmt.Print(results)
@@ -182,15 +140,15 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 
-	if !middleware.Password(body.Password){ //
+	if !mw.Password(body.Password){ //
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(`{"message": "Impossible password", "description":"Password should have: 8+ characters, an uppercase letter, a lowercase letter and a number.", "response": 500`))
 		return
 	}
 
-	body.Password, err = HashPassword(body.Password)
-	body.CreatedAt = time.Now()
-	body.Id = primitive.NewObjectID()
+	body.Password, err = mw.HashPassword(body.Password) //Hash password and store it
+	body.CreatedAt = time.Now() // Get current time
+	body.Id = primitive.NewObjectID() // and new ID and store them
 	if err != nil {
 		fmt.Print(err)
 	}
