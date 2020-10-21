@@ -4,12 +4,21 @@ import (
 	"os"
 	"fmt"
 	"time"
+	"strings"
+	"net/http"
 	"github.com/dgrijalva/jwt-go"
 )
 
-func GetAuthenticatedUser(tokenString string) (jwt.MapClaims, error){
+func GetAuthenticatedUser(r *http.Request) (jwt.MapClaims, error){
+	reqToken := r.Header.Get("Authorization")
+
+	if reqToken ==  "" {
+		return nil, fmt.Errorf("No token in header, unauthorized")
+	} 
+	splitToken := strings.Split(reqToken, "Bearer ")
+	reqToken = splitToken[1]
 	hmacSampleSecret := []byte(os.Getenv("ACCESS_SECRET"))
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(reqToken, func(token *jwt.Token) (interface{}, error) {
 		// Don't forget to validate the alg is what you expect:
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
@@ -21,11 +30,12 @@ func GetAuthenticatedUser(tokenString string) (jwt.MapClaims, error){
 		return nil, fmt.Errorf("Error parsing token: %v", err)
 	}
 	claims, ok := token.Claims.(jwt.MapClaims)
-	fmt.Printf("Claims type: %T", claims)
 	if !ok || !token.Valid {
 		return nil, fmt.Errorf("Token not valid or couldn't parse it")
 	}
-	fmt.Println("Claims: ", claims["user_id"],  claims["authorized"])
+
+	// fmt.Println("Claims: ", claims["user_id"],  claims["authorized"]
+	fmt.Println("GetAuthenticatedUser - Success")
 	return claims, nil
 }
 
@@ -43,3 +53,4 @@ func CreateToken(userId string) (string, error) {
 	}
 	return token, nil
 }
+

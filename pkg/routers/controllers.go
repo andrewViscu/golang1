@@ -66,14 +66,14 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	err = res.Err()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error":"` + err.Error() + `", "response": 500}`))
+		w.Write([]byte(`{"error":"` + err.Error() + `", "code": 500}`))
 		return
 	}
 	res.Decode(&user)
 	
 	if !mw.CheckPasswordHash(body.Password, user.Password) {
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{ "message": "Wrong password", "response": 500 }`))
+		w.Write([]byte(`{ "error": "Wrong password", "code": 500 }`))
 		return
 	}
 
@@ -82,12 +82,11 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	token, err := mw.CreateToken(stringID)
 	if err != nil {
 	   w.WriteHeader(http.StatusUnprocessableEntity)
-	   w.Write([]byte(`{"message": "Something's wrong, I can feel it.", "response":422}`))
+	   w.Write([]byte(`{"error": "Something's wrong, I can feel it.", "code":422}`))
 	   return
 	}
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"token": ` + token + `, "response":200}`))
-	mw.GetAuthenticatedUser(token)
+	w.Write([]byte(`{"token": ` + token + `, "code":200}`))
 	// http.Redirect(w, r, `/users/` + userId, http.StatusSeeOther)
 }
 
@@ -104,8 +103,8 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{ "message": "` + err.Error() + `",
-		 "response": 500}`))
+		w.Write([]byte(`{ "error": "` + err.Error() + `",
+		 "code": 500}`))
 		return
 	}
 	defer cur.Close(ctx) // close the cursor once stream of documents has exhausted
@@ -142,7 +141,7 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	if !mw.Password(body.Password){ //
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"message": "Impossible password", "description":"Password should have: 8+ characters, an uppercase letter, a lowercase letter and a number.", "response": 500`))
+		w.Write([]byte(`{"error": "Impossible password", "description":"Password should have: 8+ characters, an uppercase letter, a lowercase letter and a number.", "code": 500`))
 		return
 	}
 
@@ -156,11 +155,11 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Print("An error occured while INSERTING!")
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{ "message": "` + err.Error() + `", "response": 500}`))
+		w.Write([]byte(`{ "error": "` + err.Error() + `", "code": 500}`))
 		return
 	}
 
-	fmt.Printf("Created user '%v': %v\n", body.Username, insertResult)
+	fmt.Printf("Created user '%v':\nData: %v\n", body.Username, body)
 	json.NewEncoder(w).Encode(insertResult) // return the mongodb ID of generated document
 
 }
@@ -183,8 +182,8 @@ func GetUser(w http.ResponseWriter, req *http.Request){
 	if err != nil {
 		log.Print("An error occured while GETTING USER!\n")
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{ "message": "` + err.Error() + `",
-		 "response": 500}`))
+		w.Write([]byte(`{ "error": "` + err.Error() + `",
+		 "code": 500}`))
 		 return
 	}
 	var result primitive.M //  an unordered representation of a BSON //document which is a Map
@@ -203,10 +202,20 @@ func UpdateUser(w http.ResponseWriter, req *http.Request) {
 		Age int 	`json:"age,omitempty"`
 	}	
 	var body updateBody
-	e := json.NewDecoder(req.Body).Decode(&body)
-	if e != nil {
 
-		fmt.Print(e)
+	authUser, err := mw.GetAuthenticatedUser(req)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{ "error": "` + err.Error() + `",
+		 "code": 401}`))
+		 return
+	}
+	fmt.Println("I'll do something with authUser later", authUser)
+
+	err = json.NewDecoder(req.Body).Decode(&body)
+	if err != nil {
+
+		fmt.Print(err)
 	}
 	params := mux.Vars(req)["id"] //get Parameter value as string
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -230,8 +239,8 @@ func UpdateUser(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		log.Print("An error occured while UPDATING!")
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{ "message": "` + err.Error() + `",
-		 "response": 500}`))
+		w.Write([]byte(`{ "error": "` + err.Error() + `",
+		 "code": 500}`))
 		 return
 	}
 	var result primitive.M
@@ -243,6 +252,16 @@ func UpdateUser(w http.ResponseWriter, req *http.Request) {
 func DeleteUser(w http.ResponseWriter, req *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
+
+	authUser, err := mw.GetAuthenticatedUser(req)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{ "error": "` + err.Error() + `",
+		 "code": 401}`))
+		 return
+	}
+	fmt.Println("I'll do something with authUser later", authUser)
+
 	params := mux.Vars(req)["id"] //get Parameter value as string
 
 
@@ -256,15 +275,15 @@ func DeleteUser(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		log.Print("An error occured while DELETING!")
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{ "message": "` + err.Error() + `",
-		 "response": 500}`))
+		w.Write([]byte(`{ "error": "` + err.Error() + `",
+		 "code": 500}`))
 		 return
 	}
 	var deletedDocument bson.M
 	res.Decode(&deletedDocument)
 
 	fmt.Printf("Document: %v\n", deletedDocument)
-	w.Write([]byte(`{"message":"User ` + deletedDocument["username"].(string) + ` deleted.", "response":200}`))
+	w.Write([]byte(`{"message":"User ` + deletedDocument["username"].(string) + ` deleted.", "code":200}`))
 
 }
 
