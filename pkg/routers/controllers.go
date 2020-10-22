@@ -93,7 +93,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 
 
 
-
+// (GET /users)
 func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -118,7 +118,8 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 
 		results = append(results, elem) // appending document pointed by Next()
 	}
-	json.NewEncoder(w).Encode(results) 
+	w.WriteHeader(http.StatusInternalServerError)
+	w.Write([]byte(`{"message": "Internal Status Error", "code": 500`))
 	// w.Write([]byte())
 	// tmpl.Execute(w, results)
 	// fmt.Print(results)
@@ -203,7 +204,7 @@ func UpdateUser(w http.ResponseWriter, req *http.Request) {
 	}	
 	var body updateBody
 
-	authUser, err := mw.GetAuthenticatedUser(req)
+	authUser, err := mw.GetToken(req)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Write([]byte(`{ "error": "` + err.Error() + `",
@@ -253,7 +254,7 @@ func DeleteUser(w http.ResponseWriter, req *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
-	authUser, err := mw.GetAuthenticatedUser(req)
+	authUser, err := mw.GetToken(req)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Write([]byte(`{ "error": "` + err.Error() + `",
