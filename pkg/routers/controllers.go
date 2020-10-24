@@ -9,8 +9,8 @@ import (
 	"context"
 
 	"net/http"
-	"encoding/json"
 	"html/template"
+	"encoding/json"
 
 	"github.com/gorilla/mux"
 	"andrewViscu/golang1/pkg/db"
@@ -118,13 +118,12 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 
 		results = append(results, elem) // appending document pointed by Next()
 	}
-	w.WriteHeader(http.StatusInternalServerError)
-	w.Write([]byte(`{"message": "Internal Status Error", "code": 500`))
+	// w.WriteHeader(http.StatusInternalServerError)
+	// w.Write([]byte(`{"message": "Internal Status Error", "code": 500`))
 	// w.Write([]byte())
 	// tmpl.Execute(w, results)
 	// fmt.Print(results)
 }
-
 
 // (POST /register)
 func CreateUser(w http.ResponseWriter, r *http.Request) {
