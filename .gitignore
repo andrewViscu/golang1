@@ -1,0 +1,7 @@
+node_modules/
+public/
+src/
+.env
+package.json
+package-lock.json
+react-authin/
