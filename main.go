@@ -4,6 +4,6 @@ import (
 	"andrewViscu/golang1/pkg/routers"
 )
 
-func main(){
+func main() {
 	routers.StartServer()
 }

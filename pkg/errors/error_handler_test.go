@@ -1,16 +1,18 @@
-package pkg_test
+package errors_test
 
 import (
-	pkg "andrewViscu/golang1/pkg"
+	. "andrewViscu/golang1/pkg/errors"
 	"testing"
 	"fmt"
 	"errors"
 )
 
+
+
 func TestErrNotNil(t *testing.T)  {
 	err := errors.New("math: square root of negative number")
 	go func(err error) {
-		pkg.ErrNotNil(err)
+		ErrNotNil(err)
 	}(err)
 	if err != nil {
 		fmt.Println("Works!")

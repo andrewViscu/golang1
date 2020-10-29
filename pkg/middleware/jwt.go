@@ -1,38 +1,37 @@
 package middleware
 
 import (
-	"os"
 	"fmt"
-	"time"
-	"strings"
 	"net/http"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/dgrijalva/jwt-go"
 )
-
-
 
 func GetToken(r *http.Request) (jwt.MapClaims, error) {
 	reqToken := r.Header.Get("Authorization")
 
-	if reqToken ==  "" {
+	if reqToken == "" {
 		return nil, fmt.Errorf("No token, unauthorized")
-	} 
+	}
 	splitToken := strings.Split(reqToken, "Bearer ")
 	reqToken = splitToken[1]
 	return GetAuthenticatedUser(reqToken)
 }
 
-func GetAuthenticatedUser(reqToken string) (jwt.MapClaims, error){
+func GetAuthenticatedUser(reqToken string) (jwt.MapClaims, error) {
 	hmacSampleSecret := []byte(os.Getenv("ACCESS_SECRET"))
 	token, err := jwt.Parse(reqToken, func(token *jwt.Token) (interface{}, error) {
 		// Don't forget to validate the alg is what you expect:
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
 		}
-	
+
 		return hmacSampleSecret, nil
 	})
-	if err  != nil {
+	if err != nil {
 		return nil, fmt.Errorf("Error parsing token: %v", err)
 	}
 	claims, ok := token.Claims.(jwt.MapClaims)
@@ -55,8 +54,7 @@ func CreateToken(userId string) (string, error) {
 	at := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)
 	token, err := at.SignedString([]byte(os.Getenv("ACCESS_SECRET")))
 	if err != nil {
-	   return "", err
+		return "", err
 	}
 	return token, nil
 }
-

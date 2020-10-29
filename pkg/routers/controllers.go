@@ -2,32 +2,30 @@ package routers
 
 import (
 	// "os"
+	"context"
 	"fmt"
 	"log"
 	"time"
-	"path"
-	"context"
 
-	"net/http"
-	"html/template"
 	"encoding/json"
+	"net/http"
+
+	"andrewViscu/golang1/pkg/db"
+	mw "andrewViscu/golang1/pkg/middleware"
 
 	"github.com/gorilla/mux"
-	"andrewViscu/golang1/pkg/db"
 	"go.mongodb.org/mongo-driver/bson"
-	mw "andrewViscu/golang1/pkg/middleware"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
-    "go.mongodb.org/mongo-driver/bson/primitive"
-
 )
 
-type User struct{
-	Id primitive.ObjectID `bson:"_id"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	City string `json:"city,omitempty"`
-	Age int `json:"age,omitempty"`
-	CreatedAt time.Time `bson:"created_at"`
+type User struct {
+	Id        primitive.ObjectID `bson:"_id"`
+	Username  string             `json:"username"`
+	Password  string             `json:"password"`
+	City      string             `json:"city,omitempty"`
+	Age       int                `json:"age,omitempty"`
+	CreatedAt time.Time          `bson:"created_at"`
 }
 
 type TokenDetails struct {
@@ -37,16 +35,9 @@ type TokenDetails struct {
 	RefreshUuid  string
 	AtExpires    int64
 	RtExpires    int64
-  }
+}
 
-
-
-var userCollection = db.DBConnect().Database("foo").Collection("bar")
-
-var tmpl = template.Must(template.ParseFiles(path.Join("public", "Index.html")))
-
-
-
+var userCollection = db.Connect().Database("foo").Collection("bar")
 
 // (POST /login)
 func Login(w http.ResponseWriter, r *http.Request) {
@@ -60,7 +51,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		fmt.Print(err)
 	}
 
-	opts := options.FindOne().SetCollation(&options.Collation{})	
+	opts := options.FindOne().SetCollation(&options.Collation{})
 	res := userCollection.FindOne(ctx, bson.M{"username": body.Username}, opts)
 	// _id, err := primitive.ObjectIDFromHex(result.Id)
 	err = res.Err()
@@ -70,7 +61,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	res.Decode(&user)
-	
+
 	if !mw.CheckPasswordHash(body.Password, user.Password) {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(`{ "error": "Wrong password", "code": 500 }`))
@@ -81,34 +72,28 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	fmt.Println(stringID)
 	token, err := mw.CreateToken(stringID)
 	if err != nil {
-	   w.WriteHeader(http.StatusUnprocessableEntity)
-	   w.Write([]byte(`{"error": "Something's wrong, I can feel it.", "code":422}`))
-	   return
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		w.Write([]byte(`{"error": "Something's wrong, I can feel it.", "code":422}`))
+		return
 	}
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"token": ` + token + `, "code":200}`))
 	// http.Redirect(w, r, `/users/` + userId, http.StatusSeeOther)
 }
 
-
-
-
 // (GET /users)
 func GetAllUsers(w http.ResponseWriter, r *http.Request) {
-	
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	var results []primitive.M                                   //slice for multiple documents
+	var results []primitive.M                      //slice for multiple documents
 	cur, err := userCollection.Find(ctx, bson.M{}) //returns a *mongo.Cursor
 	if err != nil {
-
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{ "error": "` + err.Error() + `",
-		 "code": 500}`))
+		http.Error(w, err.Error(), 404)
 		return
 	}
 	defer cur.Close(ctx) // close the cursor once stream of documents has exhausted
-	for cur.Next(ctx) { //Next() gets the next document for corresponding cursor
+	for cur.Next(ctx) {  //Next() gets the next document for corresponding cursor
 
 		var elem primitive.M
 		err := cur.Decode(&elem)
@@ -118,11 +103,6 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 
 		results = append(results, elem) // appending document pointed by Next()
 	}
-	// w.WriteHeader(http.StatusInternalServerError)
-	// w.Write([]byte(`{"message": "Internal Status Error", "code": 500`))
-	// w.Write([]byte())
-	// tmpl.Execute(w, results)
-	// fmt.Print(results)
 }
 
 // (POST /register)
@@ -138,16 +118,15 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 		fmt.Print(err)
 	}
 
-
-	if !mw.Password(body.Password){ //
+	if !mw.Password(body.Password) { //
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(`{"error": "Impossible password", "description":"Password should have: 8+ characters, an uppercase letter, a lowercase letter and a number.", "code": 500`))
 		return
 	}
 
 	body.Password, err = mw.HashPassword(body.Password) //Hash password and store it
-	body.CreatedAt = time.Now() // Get current time
-	body.Id = primitive.NewObjectID() // and new ID and store them
+	body.CreatedAt = time.Now()                         // Get current time
+	body.Id = primitive.NewObjectID()                   // and new ID and store them
 	if err != nil {
 		fmt.Print(err)
 	}
@@ -165,7 +144,7 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 }
 
 // (GET /users/{id})
-func GetUser(w http.ResponseWriter, req *http.Request){
+func GetUser(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	params := mux.Vars(req)["id"] //get Parameter value as string
@@ -184,23 +163,24 @@ func GetUser(w http.ResponseWriter, req *http.Request){
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(`{ "error": "` + err.Error() + `",
 		 "code": 500}`))
-		 return
+		return
 	}
 	var result primitive.M //  an unordered representation of a BSON //document which is a Map
 	res.Decode(&result)
-    json.NewEncoder(w).Encode(result)
+	json.NewEncoder(w).Encode(result)
 
 }
+
 // (PUT /users/{id})
 func UpdateUser(w http.ResponseWriter, req *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 
 	type updateBody struct {
-		Name string `json:"name,omitempty"` 
+		Name string `json:"name,omitempty"`
 		City string `json:"city,omitempty"`
-		Age int 	`json:"age,omitempty"`
-	}	
+		Age  int    `json:"age,omitempty"`
+	}
 	var body updateBody
 
 	authUser, err := mw.GetToken(req)
@@ -208,7 +188,7 @@ func UpdateUser(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Write([]byte(`{ "error": "` + err.Error() + `",
 		 "code": 401}`))
-		 return
+		return
 	}
 	fmt.Println("I'll do something with authUser later", authUser)
 
@@ -224,8 +204,8 @@ func UpdateUser(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		fmt.Printf(err.Error())
 	}
-	filter := bson.D{{Key:"_id",Value: _id}} // converting value to BSON type
-	after := options.After          // for returning updated document
+	filter := bson.D{{Key: "_id", Value: _id}} // converting value to BSON type
+	after := options.After                     // for returning updated document
 	returnOpt := options.FindOneAndUpdateOptions{
 
 		ReturnDocument: &after,
@@ -241,7 +221,7 @@ func UpdateUser(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(`{ "error": "` + err.Error() + `",
 		 "code": 500}`))
-		 return
+		return
 	}
 	var result primitive.M
 	_ = updateResult.Decode(&result)
@@ -258,26 +238,25 @@ func DeleteUser(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		w.Write([]byte(`{ "error": "` + err.Error() + `",
 		 "code": 401}`))
-		 return
+		return
 	}
 	fmt.Println("I'll do something with authUser later", authUser)
 
 	params := mux.Vars(req)["id"] //get Parameter value as string
-
 
 	_id, err := primitive.ObjectIDFromHex(params) // convert params to mongodb Hex ID
 	if err != nil {
 		fmt.Printf(err.Error())
 	}
 	opts := options.FindOneAndDelete().SetCollation(&options.Collation{}) // to specify language-specific rules for string comparison, such as rules for lettercase
-	res := userCollection.FindOneAndDelete(context.TODO(), bson.D{{Key:"_id",Value: _id}}, opts)
+	res := userCollection.FindOneAndDelete(context.TODO(), bson.D{{Key: "_id", Value: _id}}, opts)
 	err = res.Err()
 	if err != nil {
 		log.Print("An error occured while DELETING!")
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(`{ "error": "` + err.Error() + `",
 		 "code": 500}`))
-		 return
+		return
 	}
 	var deletedDocument bson.M
 	res.Decode(&deletedDocument)
@@ -286,4 +265,3 @@ func DeleteUser(w http.ResponseWriter, req *http.Request) {
 	w.Write([]byte(`{"message":"User ` + deletedDocument["username"].(string) + ` deleted.", "code":200}`))
 
 }
-

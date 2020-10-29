@@ -9,4 +9,5 @@ require (
 	github.com/onsi/gomega v1.10.3
 	go.mongodb.org/mongo-driver v1.4.1
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
+	golang.org/x/tools/gopls v0.5.1 // indirect
 )
