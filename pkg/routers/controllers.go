@@ -56,8 +56,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	// _id, err := primitive.ObjectIDFromHex(result.Id)
 	err = res.Err()
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(`{"error":"` + err.Error() + `", "code": 500}`))
+		http.Error(w, err.Error(), 500)
 		return
 	}
 	res.Decode(&user)

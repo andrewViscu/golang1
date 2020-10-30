@@ -44,6 +44,18 @@ func GetAuthenticatedUser(reqToken string) (jwt.MapClaims, error) {
 	return claims, nil
 }
 
+// return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+// 	token := r.Header.Get("X-Session-Token")
+
+// 	if user, found := amw.tokenUsers[token]; found {
+// 		// We found the token in our map
+// 		log.Printf("Authenticated user %s\n", user)
+// 		next.ServeHTTP(w, r)
+// 	} else {
+// 		http.Error(w, "Forbidden", http.StatusForbidden)
+// 	}
+// })
+
 func CreateToken(userId string) (string, error) {
 	var err error
 	//Creating Access Token

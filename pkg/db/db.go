@@ -1,16 +1,17 @@
 package db
 
 import (
-	"os"
+	"context"
 	"fmt"
 	"log"
+	"os"
 	"time"
-	"context"
+
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-func DBConnect() *mongo.Client {
+func Connect() *mongo.Client {
 	clientURI := "mongodb+srv://" + os.Getenv("DB_USERNAME") + ":" + os.Getenv("DB_PASSWORD") + "@cluster0.kljzg.mongodb.net/foo?retryWrites=true&w=majority"
 	clientOptions := options.Client().ApplyURI(clientURI)
 	client, err := mongo.NewClient(clientOptions)
@@ -22,7 +23,7 @@ func DBConnect() *mongo.Client {
 	defer cancel()
 	err = client.Ping(ctx, nil)
 	if err != nil {
-		log.Fatal("Couldn't connect to the database: ",err)
+		log.Fatal("Couldn't connect to the database: ", err)
 	}
 	fmt.Println("Connected to MongoDB!")
 	// defer client.Disconnect(ctx)
