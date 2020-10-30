@@ -137,11 +137,7 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-<<<<<<< HEAD
-	fmt.Printf("Inserted a single document: %v, hashed password: %v\n", insertResult, body.Password)
-=======
 	fmt.Printf("Created user '%v':\nData: %v\n", body.Username, body)
->>>>>>> 4dffdaaa1d304b6ebe4c5afa4f9c7457fd7a27c4
 	json.NewEncoder(w).Encode(insertResult) // return the mongodb ID of generated document
 
 }
