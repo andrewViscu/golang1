@@ -7,6 +7,7 @@ To start this app, perform the following step in order
 2.cd into the project folder
 
 3.set environment variables DB_USERNAME, DB_PASSWORD and ACCESS_SECRET
+
 (Windows: set ENV_VARIABLE=value, 
  Linux: export ENV_VARIABLE=value)
 
