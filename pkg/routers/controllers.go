@@ -160,7 +160,7 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Printf("Inserted a single document: %v, hashed password: %v", insertResult, body.Password)
+	fmt.Printf("Inserted a single document: %v, hashed password: %v\n", insertResult, body.Password)
 	json.NewEncoder(w).Encode(insertResult) // return the mongodb ID of generated document
 
 }
