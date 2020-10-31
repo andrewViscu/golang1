@@ -1,8 +1,11 @@
 package routers_test
 
 import (
+	"andrewViscu/golang1/pkg/middleware"
+	"andrewViscu/golang1/pkg/routers"
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -16,23 +19,53 @@ import (
 
 type Test struct{}
 
-var t *Test
+type TestUser struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Token    string `json:"token"`
+	City     string `json:"city"`
+	Age      int    `json:"age"`
+}
+
+var (
+	t        *Test
+	testUser TestUser
+)
 
 func TestRoutes(t *testing.T) {
 	RegisterFailHandler(Fail)
+	go routers.StartServer()
 	RunSpecs(t, "Route Suite")
 }
 
 var _ = Describe("Route", func() {
-
 	Context("when sending a request", func() {
 		It("is GET /users", func() {
 			resp, _, err := t.RunRequest("GET", "/users", "", nil)
-			Expect(resp).To(Equal(200))
 			Expect(err).ShouldNot(HaveOccurred())
+			Expect(resp.StatusCode).To(Equal(200))
+			// Expect(resp.StatusCode).To(Equal(200))
 		})
 		It("is POST /login", func() {
-			// resp, content, err := t.RunRequest("POST", "/login", "", nil )
+			testUser.Username = "Test"
+			testUser.Password = "Test0000"
+			resp, content, err := t.RunRequest("POST", "/login", "", testUser)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(resp.StatusCode).To(Equal(200))
+
+			json.Unmarshal(content, &testUser)
+		})
+		It("is PUT /users/:id", func() {
+			var updateBody TestUser
+			updateBody.Age = 13
+			updateBody.City = "Kishinev"
+			claims, err := middleware.GetAuthenticatedUser(testUser.Token)
+			Expect(err).ShouldNot(HaveOccurred())
+			id := fmt.Sprintf("%v", claims["user_id"])
+			resp, content, err := t.RunRequest("PUT", "/users/"+id, testUser.Token, updateBody)
+			Expect(err).ShouldNot(HaveOccurred())
+			Expect(resp.StatusCode).To(Equal(200))
+			fmt.Printf("Result: %v", string(content))
 		})
 	})
 })
@@ -56,7 +89,7 @@ func (t *Test) GetRequest(method string, path string, token string, body interfa
 			p = strings.NewReader(string(pBytes))
 		}
 	}
-	r, err := http.NewRequest(method, "localhost:1234", p)
+	r, err := http.NewRequest(method, "http://localhost:1234"+path, p)
 
 	if err != nil {
 		return nil, err

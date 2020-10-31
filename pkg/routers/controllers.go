@@ -76,7 +76,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"token": ` + token + `, "code":200}`))
+	w.Write([]byte(`{"token": "` + token + `", "code":200}`))
 	// http.Redirect(w, r, `/users/` + userId, http.StatusSeeOther)
 }
 
@@ -102,6 +102,8 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 
 		results = append(results, elem) // appending document pointed by Next()
 	}
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(results)
 }
 
 // (POST /register)
@@ -223,8 +225,10 @@ func UpdateUser(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	var result primitive.M
+	w.WriteHeader(http.StatusOK)
 	_ = updateResult.Decode(&result)
 	json.NewEncoder(w).Encode(result)
+
 }
 
 // (DELETE /users/{id})
