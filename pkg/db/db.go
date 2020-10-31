@@ -23,7 +23,7 @@ func Connect() *mongo.Client {
 	defer cancel()
 	err = client.Ping(ctx, nil)
 	if err != nil {
-		log.Fatal("Couldn't connect to the database: ", err)
+		log.Fatalf("Couldn't connect to the database: %v.\n Maybe the environment variables aren't set? Check them.", err)
 	}
 	fmt.Println("Connected to MongoDB!")
 	// defer client.Disconnect(ctx)
