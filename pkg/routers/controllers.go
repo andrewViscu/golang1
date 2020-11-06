@@ -109,8 +109,6 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 // (POST /register)
 func CreateUser(w http.ResponseWriter, r *http.Request) {
 
-	w.Header().Set("Content-Type", "application/json") // for adding Content-type
-
 	var body User
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -146,7 +144,6 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 
 // (GET /users/{id})
 func GetUser(w http.ResponseWriter, req *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
 
 	params := mux.Vars(req)["id"] //get Parameter value as string
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -174,8 +171,6 @@ func GetUser(w http.ResponseWriter, req *http.Request) {
 
 // (PUT /users/{id})
 func UpdateUser(w http.ResponseWriter, req *http.Request) {
-
-	w.Header().Set("Content-Type", "application/json")
 
 	type updateBody struct {
 		Name string `json:"name,omitempty"`
@@ -234,8 +229,6 @@ func UpdateUser(w http.ResponseWriter, req *http.Request) {
 // (DELETE /users/{id})
 func DeleteUser(w http.ResponseWriter, req *http.Request) {
 
-	w.Header().Set("Content-Type", "application/json")
-
 	authUser, err := mw.GetToken(req)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -267,4 +260,8 @@ func DeleteUser(w http.ResponseWriter, req *http.Request) {
 	fmt.Printf("Document: %v\n", deletedDocument)
 	w.Write([]byte(`{"message":"User ` + deletedDocument["username"].(string) + ` deleted.", "code":200}`))
 
+}
+
+func Index(w http.ResponseWriter, req *http.Request) {
+	w.Write([]byte(`Index page was added! Hooray!`))
 }

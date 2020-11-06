@@ -12,11 +12,10 @@ import (
 
 func GetToken(r *http.Request) (jwt.MapClaims, error) {
 	reqToken := r.Header.Get("Authorization")
-
-	if reqToken == "" {
-		return nil, fmt.Errorf("No token, unauthorized")
-	}
 	splitToken := strings.Split(reqToken, "Bearer ")
+	if len(splitToken) != 2 {
+		return nil, fmt.Errorf("Malformed token")
+	}
 	reqToken = splitToken[1]
 	return GetAuthenticatedUser(reqToken)
 }
@@ -39,22 +38,19 @@ func GetAuthenticatedUser(reqToken string) (jwt.MapClaims, error) {
 		return nil, fmt.Errorf("Token not valid or couldn't parse it")
 	}
 
-	// fmt.Println("Claims: ", claims["user_id"],  claims["authorized"]
-	fmt.Println("GetAuthenticatedUser - Success")
 	return claims, nil
 }
+func Handle(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, err := GetToken(r)
+		if err != nil {
+			http.Redirect(w, r, "/login", http.StatusSeeOther)
+		} else {
+			next.ServeHTTP(w, r)
+		}
 
-// return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-// 	token := r.Header.Get("X-Session-Token")
-
-// 	if user, found := amw.tokenUsers[token]; found {
-// 		// We found the token in our map
-// 		log.Printf("Authenticated user %s\n", user)
-// 		next.ServeHTTP(w, r)
-// 	} else {
-// 		http.Error(w, "Forbidden", http.StatusForbidden)
-// 	}
-// })
+	})
+}
 
 func CreateToken(userId string) (string, error) {
 	var err error
