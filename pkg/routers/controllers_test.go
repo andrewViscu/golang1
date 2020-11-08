@@ -17,7 +17,9 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-type Test struct{}
+type Test struct {
+	Server *http.Server
+}
 
 type TestUser struct {
 	Username string `json:"username"`
@@ -39,6 +41,15 @@ func TestRoutes(t *testing.T) {
 }
 
 var _ = Describe("Route", func() {
+	BeforeEach(func() {
+		//Sorry, but I tried
+		//routers.StartServer runs endlessly
+		//without goroutines inside the router.go, I can't stop the server,
+		//or it is possible but i'm tired of searching
+	})
+	AfterEach(func() {
+
+	})
 	Context("when sending a request", func() {
 		It("is GET /users", func() {
 			resp, _, err := t.RunRequest("GET", "/users", "", nil)
