@@ -19,8 +19,9 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+//User struct
 type User struct {
-	Id        primitive.ObjectID `bson:"_id"`
+	ID        primitive.ObjectID `bson:"_id"`
 	Username  string             `json:"username"`
 	Password  string             `json:"password"`
 	City      string             `json:"city,omitempty"`
@@ -39,9 +40,9 @@ type TokenDetails struct {
 
 var userCollection = db.Connect().Database("foo").Collection("bar")
 
-// (POST /login)
+//Login - (POST /login)
 func Login(w http.ResponseWriter, r *http.Request) {
-
+	w.Header().Set("Content-Type", "application/json")
 	var body, user User
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -53,7 +54,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 
 	opts := options.FindOne().SetCollation(&options.Collation{})
 	res := userCollection.FindOne(ctx, bson.M{"username": body.Username}, opts)
-	// _id, err := primitive.ObjectIDFromHex(result.Id)
+	// _id, err := primitive.ObjectIDFromHex(result.ID)
 	err = res.Err()
 	if err != nil {
 		http.Error(w, err.Error(), 500)
@@ -67,7 +68,7 @@ func Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stringID := user.Id.Hex()
+	stringID := user.ID.Hex()
 	fmt.Println(stringID)
 	token, err := mw.CreateToken(stringID)
 	if err != nil {
@@ -80,9 +81,9 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	// http.Redirect(w, r, `/users/` + userId, http.StatusSeeOther)
 }
 
-// (GET /users)
+//GetAllUsers - (GET /users)
 func GetAllUsers(w http.ResponseWriter, r *http.Request) {
-
+	w.Header().Set("Content-Type", "application/json")
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	var results []primitive.M                      //slice for multiple documents
@@ -106,9 +107,9 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(results)
 }
 
-// (POST /register)
+//CreateUser - (POST /register)
 func CreateUser(w http.ResponseWriter, r *http.Request) {
-
+	w.Header().Set("Content-Type", "application/json")
 	var body User
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -125,7 +126,7 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 
 	body.Password, err = mw.HashPassword(body.Password) //Hash password and store it
 	body.CreatedAt = time.Now()                         // Get current time
-	body.Id = primitive.NewObjectID()                   // and new ID and store them
+	body.ID = primitive.NewObjectID()                   // and new ID and store them
 	if err != nil {
 		fmt.Print(err)
 	}
@@ -142,9 +143,9 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 
 }
 
-// (GET /users/{id})
+//GetUser - (GET /users/{id})
 func GetUser(w http.ResponseWriter, req *http.Request) {
-
+	w.Header().Set("Content-Type", "application/json")
 	params := mux.Vars(req)["id"] //get Parameter value as string
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -169,9 +170,9 @@ func GetUser(w http.ResponseWriter, req *http.Request) {
 
 }
 
-// (PUT /users/{id})
+//UpdateUser - (PUT /users/{id})
 func UpdateUser(w http.ResponseWriter, req *http.Request) {
-
+	w.Header().Set("Content-Type", "application/json")
 	type updateBody struct {
 		Name string `json:"name,omitempty"`
 		City string `json:"city,omitempty"`
@@ -226,18 +227,9 @@ func UpdateUser(w http.ResponseWriter, req *http.Request) {
 
 }
 
-// (DELETE /users/{id})
+//DeleteUser (DELETE /users/{id})
 func DeleteUser(w http.ResponseWriter, req *http.Request) {
-
-	authUser, err := mw.GetToken(req)
-	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte(`{ "error": "` + err.Error() + `",
-		 "code": 401}`))
-		return
-	}
-	fmt.Println("I'll do something with authUser later", authUser)
-
+	w.Header().Set("Content-Type", "application/json")
 	params := mux.Vars(req)["id"] //get Parameter value as string
 
 	_id, err := primitive.ObjectIDFromHex(params) // convert params to mongodb Hex ID
@@ -261,7 +253,7 @@ func DeleteUser(w http.ResponseWriter, req *http.Request) {
 	w.Write([]byte(`{"message":"User ` + deletedDocument["username"].(string) + ` deleted.", "code":200}`))
 
 }
-
+//Index - (GET /)
 func Index(w http.ResponseWriter, req *http.Request) {
 	w.Write([]byte(`Index page was added! Hooray!`))
 }

@@ -4,6 +4,7 @@ import (
 	"andrewViscu/golang1/pkg/middleware"
 	"andrewViscu/golang1/pkg/routers"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -30,56 +31,71 @@ type TestUser struct {
 }
 
 var (
-	t        *Test
-	testUser TestUser
+	t        Test
+	tu       TestUser
+	id       string
 )
 
 func TestRoutes(t *testing.T) {
 	RegisterFailHandler(Fail)
-	go routers.StartServer()
 	RunSpecs(t, "Route Suite")
 }
 
 var _ = Describe("Route", func() {
 	BeforeEach(func() {
-		//Sorry, but I tried
-		//routers.StartServer runs endlessly
-		//without goroutines inside the router.go, I can't stop the server,
-		//or it is possible but i'm tired of searching
+		t.Server = routers.StartServer()
+
 	})
 	AfterEach(func() {
-
+		t.Server.Shutdown(context.Background())
 	})
 	Context("when sending a request", func() {
-		It("is GET /users", func() {
-			resp, _, err := t.RunRequest("GET", "/users", "", nil)
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(200))
-			// Expect(resp.StatusCode).To(Equal(200))
+		It("is GET /", func(){
+			resp, _, err := t.RunRequest("GET", "/", "", nil)
+			ExpectDefault(resp, err)
+		})
+		It("is POST /register", func(){
+			tu.Username = "Test2"
+			tu.Password = "Test0000"
+			resp, _, err := t.RunRequest("POST", "/register", "", tu)
+			ExpectDefault(resp, err)
+
 		})
 		It("is POST /login", func() {
-			testUser.Username = "Test"
-			testUser.Password = "Test0000"
-			resp, content, err := t.RunRequest("POST", "/login", "", testUser)
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(200))
+			resp, content, err := t.RunRequest("POST", "/login", "", tu)
+			ExpectDefault(resp, err)
 
-			json.Unmarshal(content, &testUser)
+			json.Unmarshal(content, &tu)
+		})
+		It("get user's ID", func(){
+			claims, err := middleware.GetAuthenticatedUser(tu.Token)
+			Expect(err).ShouldNot(HaveOccurred())
+			id = fmt.Sprintf("%v", claims["user_id"])
 		})
 		It("is PUT /users/:id", func() {
 			var updateBody TestUser
 			updateBody.Age = 13
 			updateBody.City = "Kishinev"
-			claims, err := middleware.GetAuthenticatedUser(testUser.Token)
-			Expect(err).ShouldNot(HaveOccurred())
-			id := fmt.Sprintf("%v", claims["user_id"])
-			resp, content, err := t.RunRequest("PUT", "/users/"+id, testUser.Token, updateBody)
-			Expect(err).ShouldNot(HaveOccurred())
-			Expect(resp.StatusCode).To(Equal(200))
+			resp, content, err := t.RunRequest("PUT", "/users/"+id, tu.Token, updateBody)
+			ExpectDefault(resp, err)
 			fmt.Printf("Result: %v", string(content))
+		})
+		It("is DELETE /users", func(){
+			resp, _, err := t.RunRequest("DELETE", "/users/"+id, tu.Token, nil)
+			ExpectDefault(resp, err)
+					
+		})
+		It("is GET /users", func() {
+			resp, _, err := t.RunRequest("GET", "/users", "", nil)
+			ExpectDefault(resp, err)
 		})
 	})
 })
+
+func ExpectDefault(r *http.Response, err error) {
+	Expect(err).ShouldNot(HaveOccurred())
+	Expect(r.StatusCode).To(Equal(200))
+}
 
 func (t *Test) GetRequest(method string, path string, token string, body interface{}) (*http.Request, error) {
 	var p io.Reader
