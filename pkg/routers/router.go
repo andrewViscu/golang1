@@ -11,7 +11,7 @@ import (
 
 //StartServer launches the server
 func StartServer() {
-	server := &http.Server{Addr: "1234", Handler: ConfigureServer()}
+	server := &http.Server{Addr: ":1234", Handler: ConfigureServer()}
 	if err := server.ListenAndServe(); err != http.ErrServerClosed {
 		log.Fatalf("ListenAndServe(): %v", err)
 	}
