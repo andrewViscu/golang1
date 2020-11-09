@@ -4,12 +4,12 @@ import (
 	"andrewViscu/golang1/pkg/middleware"
 	"andrewViscu/golang1/pkg/routers"
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -19,7 +19,7 @@ import (
 )
 
 type Test struct {
-	Server *http.Server
+	Server *httptest.Server
 }
 
 type TestUser struct {
@@ -30,31 +30,38 @@ type TestUser struct {
 	Age      int    `json:"age"`
 }
 
-var (
-	t        Test
-	tu       TestUser
-	id       string
-)
-
 func TestRoutes(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Route Suite")
 }
 
-var _ = Describe("Route", func() {
-	BeforeEach(func() {
-		t.Server = routers.StartServer()
+func (test *Test) StartTestServer() {
+	muxRouter := routers.ConfigureServer()
+	test.Server = httptest.NewServer(muxRouter)
+}
 
+var _ = Describe("Route", func() {
+
+	var (
+		t  *Test
+		tu TestUser
+		id string
+	)
+
+	BeforeSuite(func() {
+		t = &Test{}
+		t.StartTestServer()
 	})
-	AfterEach(func() {
-		t.Server.Shutdown(context.Background())
+	AfterSuite(func() {
+		t.Server.Close()
 	})
 	Context("when sending a request", func() {
-		It("is GET /", func(){
-			resp, _, err := t.RunRequest("GET", "/", "", nil)
+		It("is GET /", func() {
+			resp, content, err := t.RunRequest("GET", "/", "", nil)
+			fmt.Println(string(content))
 			ExpectDefault(resp, err)
 		})
-		It("is POST /register", func(){
+		It("is POST /register", func() {
 			tu.Username = "Test2"
 			tu.Password = "Test0000"
 			resp, _, err := t.RunRequest("POST", "/register", "", tu)
@@ -67,7 +74,7 @@ var _ = Describe("Route", func() {
 
 			json.Unmarshal(content, &tu)
 		})
-		It("get user's ID", func(){
+		It("get user's ID", func() {
 			claims, err := middleware.GetAuthenticatedUser(tu.Token)
 			Expect(err).ShouldNot(HaveOccurred())
 			id = fmt.Sprintf("%v", claims["user_id"])
@@ -80,10 +87,10 @@ var _ = Describe("Route", func() {
 			ExpectDefault(resp, err)
 			fmt.Printf("Result: %v", string(content))
 		})
-		It("is DELETE /users", func(){
+		It("is DELETE /users", func() {
 			resp, _, err := t.RunRequest("DELETE", "/users/"+id, tu.Token, nil)
 			ExpectDefault(resp, err)
-					
+
 		})
 		It("is GET /users", func() {
 			resp, _, err := t.RunRequest("GET", "/users", "", nil)
@@ -111,14 +118,16 @@ func (t *Test) GetRequest(method string, path string, token string, body interfa
 		default:
 			pBytes, err1 := json.Marshal(body)
 			if err1 != nil {
+				fmt.Println("DEBUGGING 5: ", err1)
 				return nil, err1
 			}
 			p = strings.NewReader(string(pBytes))
 		}
 	}
-	r, err := http.NewRequest(method, "http://localhost:1234"+path, p)
+	r, err := http.NewRequest(method, t.Server.URL+path, p)
 
 	if err != nil {
+		fmt.Println("DEBUGGING 4: ", err)
 		return nil, err
 	}
 
@@ -126,6 +135,7 @@ func (t *Test) GetRequest(method string, path string, token string, body interfa
 
 	r.Header.Set("Authorization", "Bearer "+token)
 	if err != nil {
+		fmt.Println("DEBUGGING 3: ", err)
 		return nil, err
 	}
 	return r, nil
@@ -139,7 +149,6 @@ func RunRequest(req *http.Request) (resp *http.Response, content []byte, err err
 		content, err = ioutil.ReadAll(resp.Body)
 
 	}
-
 	// todo right now, it doesn't hurt and makes things easier but it might cause issues in the future
 	content = []byte(strings.TrimSpace(string(content)))
 
@@ -149,6 +158,7 @@ func (t *Test) RunRequest(method string, path string, token string, body interfa
 	var req *http.Request
 	req, err = t.GetRequest(method, path, token, body)
 	if err != nil {
+		fmt.Println("DEBUGGING 1: ", err)
 		return
 	}
 	return RunRequest(req)

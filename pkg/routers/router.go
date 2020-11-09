@@ -8,9 +8,22 @@ import (
 
 	"github.com/gorilla/mux"
 )
+
 //StartServer launches the server
-func StartServer() *http.Server{
+func StartServer() {
+	server := &http.Server{Addr: "1234", Handler: ConfigureServer()}
+	if err := server.ListenAndServe(); err != http.ErrServerClosed {
+		log.Fatalf("ListenAndServe(): %v", err)
+	}
+}
+
+func TemporaryFunc(w http.ResponseWriter, r *http.Request) {
+	w.Write([]byte("It's temporary"))
+}
+
+func ConfigureServer() *mux.Router {
 	r := mux.NewRouter()
+	r.StrictSlash(true)
 
 	authRouter := r.PathPrefix("/users").Subrouter()
 	restRouter := r.PathPrefix("/").Subrouter()
@@ -21,19 +34,11 @@ func StartServer() *http.Server{
 	authRouter.HandleFunc("/{id}", UpdateUser).Methods("PUT")
 	authRouter.HandleFunc("/{id}", DeleteUser).Methods("DELETE")
 
-	restRouter.HandleFunc("/",         Index).Methods("GET")
-	restRouter.HandleFunc("/users",    GetAllUsers).Methods("GET")
+	restRouter.HandleFunc("/", Index).Methods("GET")
+	restRouter.HandleFunc("/users", GetAllUsers).Methods("GET")
 	restRouter.HandleFunc("/register", CreateUser).Methods("POST")
-	restRouter.HandleFunc("/login",    Login).Methods("POST")
+	restRouter.HandleFunc("/login", Login).Methods("POST")
+	restRouter.HandleFunc("/login", TemporaryFunc).Methods("GET")
 
-	server := &http.Server{Addr: ":1234", Handler: r}
-	go func() {
-
-        if err := server.ListenAndServe(); err != http.ErrServerClosed {
-            log.Fatalf("ListenAndServe(): %v", err)
-        }
-    }()
-
-    return server
-
+	return r
 }

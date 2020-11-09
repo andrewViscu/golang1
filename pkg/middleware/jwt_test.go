@@ -2,7 +2,6 @@ package middleware_test
 
 import (
 	"net/http"
-	"net/http/httptest"
 	"testing"
 
 	"math/rand"
@@ -44,11 +43,5 @@ var _ = Describe("Auth", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			mw.GetToken(req)
 		})
-	})
-	Context("Mocking middleware", func() {
-		nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {})
-		handlerToTest := mw.Handle(nextHandler)
-		req := httptest.NewRequest("GET", "/users/"+id, nil)
-		handlerToTest.ServeHTTP(httptest.NewRecorder(), req)
 	})
 })
