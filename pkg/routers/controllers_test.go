@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -57,8 +58,7 @@ var _ = Describe("Route", func() {
 	})
 	Context("when sending a request", func() {
 		It("is GET /", func() {
-			resp, content, err := t.RunRequest("GET", "/", "", nil)
-			fmt.Println(string(content))
+			resp, _, err := t.RunRequest("GET", "/", "", nil)
 			ExpectDefault(resp, err)
 		})
 		It("is POST /register", func() {
@@ -66,6 +66,7 @@ var _ = Describe("Route", func() {
 			tu.Password = "Test0000"
 			resp, _, err := t.RunRequest("POST", "/register", "", tu)
 			ExpectDefault(resp, err)
+			log.Println("Created user")
 
 		})
 		It("is POST /login", func() {
@@ -79,22 +80,29 @@ var _ = Describe("Route", func() {
 			Expect(err).ShouldNot(HaveOccurred())
 			id = fmt.Sprintf("%v", claims["user_id"])
 		})
+		It("is GET /users/:id", func() {
+			resp, _, err := t.RunRequest("GET", "/users/"+id, tu.Token, nil)
+			ExpectDefault(resp, err)
+			log.Println("Got user")
+		})
 		It("is PUT /users/:id", func() {
 			var updateBody TestUser
 			updateBody.Age = 13
 			updateBody.City = "Kishinev"
-			resp, content, err := t.RunRequest("PUT", "/users/"+id, tu.Token, updateBody)
+			resp, _, err := t.RunRequest("PUT", "/users/"+id, tu.Token, updateBody)
 			ExpectDefault(resp, err)
-			fmt.Printf("Result: %v", string(content))
+			log.Println("Updated user")
 		})
 		It("is DELETE /users", func() {
 			resp, _, err := t.RunRequest("DELETE", "/users/"+id, tu.Token, nil)
 			ExpectDefault(resp, err)
+			log.Println("User deleted.")
 
 		})
 		It("is GET /users", func() {
 			resp, _, err := t.RunRequest("GET", "/users", "", nil)
 			ExpectDefault(resp, err)
+			log.Println("Got all users")
 		})
 	})
 })

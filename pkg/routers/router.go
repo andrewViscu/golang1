@@ -26,19 +26,17 @@ func ConfigureServer() *mux.Router {
 	r.StrictSlash(true)
 
 	authRouter := r.PathPrefix("/users").Subrouter()
-	restRouter := r.PathPrefix("/").Subrouter()
-	restRouter.Headers("Content-Type", "application/json")
 	authRouter.Use(jwt.Handle)
 
 	authRouter.HandleFunc("/{id}", GetUser).Methods("GET")
 	authRouter.HandleFunc("/{id}", UpdateUser).Methods("PUT")
 	authRouter.HandleFunc("/{id}", DeleteUser).Methods("DELETE")
 
-	restRouter.HandleFunc("/", Index).Methods("GET")
-	restRouter.HandleFunc("/users", GetAllUsers).Methods("GET")
-	restRouter.HandleFunc("/register", CreateUser).Methods("POST")
-	restRouter.HandleFunc("/login", Login).Methods("POST")
-	restRouter.HandleFunc("/login", TemporaryFunc).Methods("GET")
+	r.HandleFunc("/", Index).Methods("GET")
+	r.HandleFunc("/users", GetAllUsers).Methods("GET")
+	r.HandleFunc("/register", CreateUser).Methods("POST")
+	r.HandleFunc("/login", Login).Methods("POST")
+	r.HandleFunc("/login", TemporaryFunc).Methods("GET")
 
 	return r
 }

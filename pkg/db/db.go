@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"go.mongodb.org/mongo-driver/mongo"
@@ -12,7 +11,9 @@ import (
 )
 
 func Connect() *mongo.Client {
-	clientURI := "mongodb+srv://" + os.Getenv("DB_USERNAME") + ":" + os.Getenv("DB_PASSWORD") + "@cluster0.kljzg.mongodb.net/foo?retryWrites=true&w=majority"
+	credentials := GetCredentials()
+	fmt.Println(credentials)
+	clientURI := "mongodb+srv://" + credentials[0] + ":" + credentials[1] + "@cluster0.kljzg.mongodb.net/foo?retryWrites=true&w=majority"
 	clientOptions := options.Client().ApplyURI(clientURI)
 	client, err := mongo.NewClient(clientOptions)
 	if err != nil {

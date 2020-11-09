@@ -3,7 +3,6 @@ package routers
 import (
 	// "os"
 	"context"
-	"fmt"
 	"log"
 	"time"
 
@@ -16,6 +15,7 @@ import (
 	"github.com/gorilla/mux"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
@@ -49,12 +49,11 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	err := json.NewDecoder(r.Body).Decode(&body)
 	if err != nil {
-		fmt.Print(err)
+		log.Print(err)
 	}
 
 	opts := options.FindOne().SetCollation(&options.Collation{})
 	res := userCollection.FindOne(ctx, bson.M{"username": body.Username}, opts)
-	// _id, err := primitive.ObjectIDFromHex(result.ID)
 	err = res.Err()
 	if err != nil {
 		http.Error(w, err.Error(), 500)
@@ -69,13 +68,13 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	stringID := user.ID.Hex()
-	fmt.Println(stringID)
 	token, err := mw.CreateToken(stringID)
 	if err != nil {
 		w.WriteHeader(http.StatusUnprocessableEntity)
 		w.Write([]byte(`{"error": "Something's wrong, I can feel it.", "code":422}`))
 		return
 	}
+	log.Println("Login successful")
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"token": "` + token + `", "code":200}`))
 	// http.Redirect(w, r, `/users/` + userId, http.StatusSeeOther)
@@ -115,7 +114,7 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 	err := json.NewDecoder(r.Body).Decode(&body) // storing in user variable of type user
 	if err != nil {
-		fmt.Print(err)
+		log.Print(err)
 	}
 
 	if !mw.Password(body.Password) { //
@@ -128,7 +127,7 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 	body.CreatedAt = time.Now()                         // Get current time
 	body.ID = primitive.NewObjectID()                   // and new ID and store them
 	if err != nil {
-		fmt.Print(err)
+		log.Print(err)
 	}
 	insertResult, err := userCollection.InsertOne(ctx, body)
 	if err != nil {
@@ -137,10 +136,16 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{ "error": "` + err.Error() + `", "code": 500}`))
 		return
 	}
-
-	fmt.Printf("Created user '%v':\nData: %v\n", body.Username, body)
-	json.NewEncoder(w).Encode(insertResult) // return the mongodb ID of generated document
-
+	id := insertResult.InsertedID
+	stringID := id.(primitive.ObjectID).Hex()
+	token, err := mw.CreateToken(stringID)
+	if err != nil {
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		w.Write([]byte(`{"error": "Something's wrong, I can feel it.", "code":422}`))
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(`{"token": "` + token + `", "code":200}`))
 }
 
 //GetUser - (GET /users/{id})
@@ -152,19 +157,25 @@ func GetUser(w http.ResponseWriter, req *http.Request) {
 
 	_id, err := primitive.ObjectIDFromHex(params) // convert params to mongodb Hex ID
 	if err != nil {
-		fmt.Printf(err.Error())
+		log.Printf(err.Error())
 	}
 	opts := options.FindOne().SetCollation(&options.Collation{}) // to specify language-specific rules for string comparison, such as rules for lettercase
 	res := userCollection.FindOne(ctx, bson.D{{Key: "_id", Value: _id}}, opts)
 	err = res.Err()
 	if err != nil {
+
 		log.Print("An error occured while GETTING USER!\n")
+		if err == mongo.ErrNoDocuments {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(`{"error": "document not found: ` + err.Error() + `", "code":404}`))
+			return
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(`{ "error": "` + err.Error() + `",
 		 "code": 500}`))
 		return
 	}
-	var result primitive.M //  an unordered representation of a BSON //document which is a Map
+	var result primitive.M
 	res.Decode(&result)
 	json.NewEncoder(w).Encode(result)
 
@@ -180,26 +191,17 @@ func UpdateUser(w http.ResponseWriter, req *http.Request) {
 	}
 	var body updateBody
 
-	authUser, err := mw.GetToken(req)
-	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte(`{ "error": "` + err.Error() + `",
-		 "code": 401}`))
-		return
-	}
-	fmt.Println("I'll do something with authUser later", authUser)
-
-	err = json.NewDecoder(req.Body).Decode(&body)
+	err := json.NewDecoder(req.Body).Decode(&body)
 	if err != nil {
 
-		fmt.Print(err)
+		log.Print(err)
 	}
 	params := mux.Vars(req)["id"] //get Parameter value as string
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	_id, err := primitive.ObjectIDFromHex(params) // convert params to mongodb Hex ID
 	if err != nil {
-		fmt.Printf(err.Error())
+		log.Printf(err.Error())
 	}
 	filter := bson.D{{Key: "_id", Value: _id}} // converting value to BSON type
 	after := options.After                     // for returning updated document
@@ -210,7 +212,6 @@ func UpdateUser(w http.ResponseWriter, req *http.Request) {
 	update := bson.M{
 		"$set": body,
 	}
-	log.Print(update)
 	updateResult := userCollection.FindOneAndUpdate(ctx, filter, update, &returnOpt)
 	err = updateResult.Err()
 	if err != nil {
@@ -222,7 +223,7 @@ func UpdateUser(w http.ResponseWriter, req *http.Request) {
 	}
 	var result primitive.M
 	w.WriteHeader(http.StatusOK)
-	_ = updateResult.Decode(&result)
+	updateResult.Decode(&result)
 	json.NewEncoder(w).Encode(result)
 
 }
@@ -234,7 +235,7 @@ func DeleteUser(w http.ResponseWriter, req *http.Request) {
 
 	_id, err := primitive.ObjectIDFromHex(params) // convert params to mongodb Hex ID
 	if err != nil {
-		fmt.Printf(err.Error())
+		log.Printf(err.Error())
 	}
 	opts := options.FindOneAndDelete().SetCollation(&options.Collation{}) // to specify language-specific rules for string comparison, such as rules for lettercase
 	res := userCollection.FindOneAndDelete(context.TODO(), bson.D{{Key: "_id", Value: _id}}, opts)
@@ -248,11 +249,10 @@ func DeleteUser(w http.ResponseWriter, req *http.Request) {
 	}
 	var deletedDocument bson.M
 	res.Decode(&deletedDocument)
-
-	fmt.Printf("Document: %v\n", deletedDocument)
 	w.Write([]byte(`{"message":"User ` + deletedDocument["username"].(string) + ` deleted.", "code":200}`))
 
 }
+
 //Index - (GET /)
 func Index(w http.ResponseWriter, req *http.Request) {
 	w.Write([]byte(`Index page was added! Hooray!`))
