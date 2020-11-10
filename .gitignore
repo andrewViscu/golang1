@@ -6,3 +6,4 @@ react-authin/
 package.json
 package-lock.json
 pkg/db/db_credentials.go
+golang1.exe
