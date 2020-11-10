@@ -11,9 +11,9 @@ import (
 )
 
 func Connect() *mongo.Client {
-	credentials := GetCredentials()
-	fmt.Println(credentials)
-	clientURI := "mongodb+srv://" + credentials[0] + ":" + credentials[1] + "@cluster0.kljzg.mongodb.net/foo?retryWrites=true&w=majority"
+	var dbPass, dbUser string
+	dbUser, dbPass = GetCredentials()
+	clientURI := "mongodb+srv://" + dbUser + ":" + dbPass + "@cluster0.kljzg.mongodb.net/foo?retryWrites=true&w=majority"
 	clientOptions := options.Client().ApplyURI(clientURI)
 	client, err := mongo.NewClient(clientOptions)
 	if err != nil {
