@@ -26,7 +26,8 @@ type Test struct {
 type TestUser struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
-	Token    string `json:"token"`
+	At    string `json:"access_token"`
+	Rt    string `json:"refresh_token"`
 	City     string `json:"city"`
 	Age      int    `json:"age"`
 }
@@ -72,16 +73,17 @@ var _ = Describe("Route", func() {
 		It("is POST /login", func() {
 			resp, content, err := t.RunRequest("POST", "/login", "", tu)
 			ExpectDefault(resp, err)
-
+			// log.Print(string(content))
 			json.Unmarshal(content, &tu)
 		})
 		It("get user's ID", func() {
-			claims, err := middleware.GetAuthenticatedUser(tu.Token)
+			// log.Print(tu)
+			claims, err := middleware.GetAuthenticatedUser(tu.At)
 			Expect(err).ShouldNot(HaveOccurred())
 			id = fmt.Sprintf("%v", claims["user_id"])
 		})
 		It("is GET /users/:id", func() {
-			resp, _, err := t.RunRequest("GET", "/users/"+id, tu.Token, nil)
+			resp, _, err := t.RunRequest("GET", "/users/"+id, tu.At, nil)
 			ExpectDefault(resp, err)
 			log.Println("Got user")
 		})
@@ -89,12 +91,12 @@ var _ = Describe("Route", func() {
 			var updateBody TestUser
 			updateBody.Age = 13
 			updateBody.City = "Kishinev"
-			resp, _, err := t.RunRequest("PUT", "/users/"+id, tu.Token, updateBody)
+			resp, _, err := t.RunRequest("PUT", "/users/"+id, tu.At, updateBody)
 			ExpectDefault(resp, err)
 			log.Println("Updated user")
 		})
 		It("is DELETE /users", func() {
-			resp, _, err := t.RunRequest("DELETE", "/users/"+id, tu.Token, nil)
+			resp, _, err := t.RunRequest("DELETE", "/users/"+id, tu.At, nil)
 			ExpectDefault(resp, err)
 			log.Println("User deleted.")
 

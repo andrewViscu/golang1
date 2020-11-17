@@ -7,14 +7,23 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	jwt "github.com/dgrijalva/jwt-go"
 )
+
+type TokenDetails struct {
+	AccessToken  string
+	RefreshToken string
+	AccessUuid   string
+	RefreshUuid  string
+	AtExpires    int64
+	RtExpires    int64
+}
 
 func GetToken(r *http.Request) (jwt.MapClaims, error) {
 	reqToken := r.Header.Get("Authorization")
 	splitToken := strings.Split(reqToken, "Bearer ")
 	if len(splitToken) != 2 {
-		return nil, fmt.Errorf("Malformed token")
+		return nil, fmt.Errorf("Malformed token: %v", reqToken)
 	}
 	reqToken = splitToken[1]
 	return GetAuthenticatedUser(reqToken)
@@ -31,7 +40,7 @@ func GetAuthenticatedUser(reqToken string) (jwt.MapClaims, error) {
 		return hmacSampleSecret, nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("Error parsing token: %v", err)
+		return nil, fmt.Errorf("Error parsing token: %v, token: %v", err, token)
 	}
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok || !token.Valid {
@@ -42,6 +51,7 @@ func GetAuthenticatedUser(reqToken string) (jwt.MapClaims, error) {
 }
 func Handle(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
 		_, err := GetToken(r)
 		if err != nil {
 			http.Redirect(w, r, "/login", http.StatusSeeOther)
@@ -52,17 +62,29 @@ func Handle(next http.Handler) http.Handler {
 	})
 }
 
-func CreateToken(userId string) (string, error) {
+func CreateToken(userId string) (*TokenDetails, error) {
+	td := &TokenDetails{}
+	td.AtExpires = time.Now().Add(time.Minute * 15).Unix()
+	td.RtExpires = time.Now().Add(time.Hour * 24 * 7).Unix()
+
 	var err error
-	//Creating Access Token
 	atClaims := jwt.MapClaims{}
 	atClaims["authorized"] = true
 	atClaims["user_id"] = userId
-	atClaims["exp"] = time.Now().Add(time.Minute * 15).Unix()
+	atClaims["exp"] = td.AtExpires
 	at := jwt.NewWithClaims(jwt.SigningMethodHS256, atClaims)
-	token, err := at.SignedString([]byte(os.Getenv("ACCESS_SECRET")))
+	td.AccessToken, err = at.SignedString([]byte(os.Getenv("ACCESS_SECRET")))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return token, nil
+
+	rtClaims := jwt.MapClaims{}
+	rtClaims["exp"] = td.RtExpires
+	rt := jwt.NewWithClaims(jwt.SigningMethodHS256, rtClaims)
+	td.RefreshToken, err = rt.SignedString([]byte(os.Getenv("REFRESH_SECRET")))
+	  if err != nil {
+		return nil, err
+	}
+
+	return td, nil
 }

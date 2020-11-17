@@ -29,17 +29,9 @@ type User struct {
 	CreatedAt time.Time          `bson:"created_at"`
 }
 
-type TokenDetails struct {
-	AccessToken  string
-	RefreshToken string
-	AccessUuid   string
-	RefreshUuid  string
-	AtExpires    int64
-	RtExpires    int64
-}
 
 var userCollection = db.Connect().Database("foo").Collection("bar")
-
+var td = &mw.TokenDetails{}
 //Login - (POST /login)
 func Login(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
@@ -68,16 +60,21 @@ func Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	stringID := user.ID.Hex()
-	token, err := mw.CreateToken(stringID)
+	CreateTokensFromID(w, stringID)
+	
+	// http.Redirect(w, r, `/users/` + userId, http.StatusSeeOther)
+}
+
+func CreateTokensFromID(w http.ResponseWriter, ID string) {
+	td, err := mw.CreateToken(ID)
 	if err != nil {
 		w.WriteHeader(http.StatusUnprocessableEntity)
-		w.Write([]byte(`{"error": "Something's wrong, I can feel it.", "code":422}`))
+		w.Write([]byte(`{"error": "Couldn't create token for given ID", "code":422}`))
 		return
 	}
 	log.Println("Login successful")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"token": "` + token + `", "code":200}`))
-	// http.Redirect(w, r, `/users/` + userId, http.StatusSeeOther)
+	w.Write([]byte(`{"access_token":"` + td.AccessToken + `","refresh_token":"` + td.RefreshToken + `","code":200}`))
 }
 
 //GetAllUsers - (GET /users)
@@ -109,6 +106,9 @@ func GetAllUsers(w http.ResponseWriter, r *http.Request) {
 //CreateUser - (POST /register)
 func CreateUser(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	// if td.AccessToken != "" {
+	// 	w.Header().Set("Authorization", "Bearer " + td.AccessToken)
+	// }
 	var body User
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -138,19 +138,15 @@ func CreateUser(w http.ResponseWriter, r *http.Request) {
 	}
 	id := insertResult.InsertedID
 	stringID := id.(primitive.ObjectID).Hex()
-	token, err := mw.CreateToken(stringID)
-	if err != nil {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		w.Write([]byte(`{"error": "Something's wrong, I can feel it.", "code":422}`))
-		return
-	}
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"token": "` + token + `", "code":200}`))
+	CreateTokensFromID(w, stringID)
 }
 
 //GetUser - (GET /users/{id})
 func GetUser(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	// if td.AccessToken != "" {
+	// 	w.Header().Set("Authorization", "Bearer " + td.AccessToken)
+	// }
 	params := mux.Vars(req)["id"] //get Parameter value as string
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -184,6 +180,9 @@ func GetUser(w http.ResponseWriter, req *http.Request) {
 //UpdateUser - (PUT /users/{id})
 func UpdateUser(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	// if td.AccessToken != "" {
+	// 	w.Header().Set("Authorization", "Bearer " + td.AccessToken)
+	// }
 	type updateBody struct {
 		Name string `json:"name,omitempty"`
 		City string `json:"city,omitempty"`
@@ -231,6 +230,9 @@ func UpdateUser(w http.ResponseWriter, req *http.Request) {
 //DeleteUser (DELETE /users/{id})
 func DeleteUser(w http.ResponseWriter, req *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+	// if td.AccessToken != "" {
+	// 	w.Header().Set("Authorization", "Bearer " + td.AccessToken)
+	// }
 	params := mux.Vars(req)["id"] //get Parameter value as string
 
 	_id, err := primitive.ObjectIDFromHex(params) // convert params to mongodb Hex ID

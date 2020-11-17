@@ -1,7 +1,7 @@
 package middleware_test
 
 import (
-	"net/http"
+	// "net/http"
 	"testing"
 
 	"math/rand"
@@ -21,27 +21,30 @@ func TestAuth(t *testing.T) {
 	// fmt.Println("Everything worked!")
 }
 
-var (
-	id string
-)
 
 var _ = Describe("Auth", func() {
+	var (
+		id string
+		// token string
+	)
 	Context("When creating token from a random ID", func() {
 		id = strconv.Itoa(rand.Int())
-		token, err := mw.CreateToken(id)
+		ts, err := mw.CreateToken(id)
 		Expect(err).ShouldNot(HaveOccurred())
 
 		It("should be equal to ID", func() {
-			claims, err := mw.GetAuthenticatedUser(token)
+			claims, err := mw.GetAuthenticatedUser(ts.AccessToken)
 			Expect(err).ShouldNot(HaveOccurred())
 			Expect(id).To(Equal(claims["user_id"]))
 		})
 	})
-	Context("When sending request to auth required url", func() {
-		req, err := http.NewRequest("POST", "/update/ "+id, nil)
-		It("should get token", func() {
-			Expect(err).ShouldNot(HaveOccurred())
-			mw.GetToken(req)
-		})
-	})
+	// Context("When sending request to auth required url", func() {
+	// 	req, err := http.NewRequest("POST", "/update/ "+id, nil)
+	// 	Expect(err).ShouldNot(HaveOccurred())
+	// 	It("should get token", func() {
+	// 		_, err := mw.GetToken(req)
+	// 		Expect(err).ShouldNot(HaveOccurred())
+			
+	// 	})
+	// })
 })
